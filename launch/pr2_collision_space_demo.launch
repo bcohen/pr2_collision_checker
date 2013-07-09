@@ -1,0 +1,22 @@
+<launch>
+    <node pkg="topic_tools" type="throttle" name="throttle_joint_states" args="messages joint_states 4.0"/>
+
+    <node pkg="pr2_collision_checker" type="testPR2CollisionChecker" name="pr2_collision_checker" output="screen" >
+        <rosparam file="$(find pr2_collision_checker)/config/pr2_both_arms.yaml" command="load"/>
+        <rosparam file="$(find pr2_collision_checker)/config/pr2_body.yaml" command="load"/>
+
+        <param name="planner/left_arm_description_file" value="$(find pr2_collision_checker)/config/pr2_left_arm.cfg"/>
+        <param name="planner/right_arm_description_file" value="$(find pr2_collision_checker)/config/pr2_right_arm.cfg"/>
+
+        <param name="collision_space/resolution" value="0.02"/>
+        <param name="collision_space/reference_frame" value="map"/>
+        <param name="collision_space/occupancy_grid/origin_x" value="-3.5"/>
+        <param name="collision_space/occupancy_grid/origin_y" value="-1.2"/>
+        <param name="collision_space/occupancy_grid/origin_z" value="0.0"/>
+        <param name="collision_space/occupancy_grid/size_x" value="7.0"/>
+        <param name="collision_space/occupancy_grid/size_y" value="4.0"/>
+        <param name="collision_space/occupancy_grid/size_z" value="2.0"/>
+        <param name="visualizations/collision_model" value="true"/>
+    </node>
+
+</launch>

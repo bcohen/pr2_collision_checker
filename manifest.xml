@@ -1,0 +1,33 @@
+<package>
+  <description brief="pr2_collision_checker">
+
+     pr2_collision_checker
+
+  </description>
+  <author>Benjamin Cohen</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/pr2_collision_checker</url>
+
+  <depend package="roscpp" />
+  <!-- <depend package="sbpl_arm_planner" /> -->
+  <depend package="tf" />
+  <depend package="tf_conversions" />
+  <depend package="kdl" />
+  <depend package="arm_navigation_msgs" />
+  <depend package="leatherman" />
+  <depend package="sbpl_manipulation_components" />
+  <depend package="sbpl_geometry_utils" />
+
+  <depend package="pviz" />
+  <depend package="trajectory_msgs" />
+  <depend package="geometry_msgs" />
+  <depend package="message_filters" />
+
+  <export>
+    <cpp cflags="-I${prefix}/include -O3 -g" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lpr2_collision_checker"/>
+  </export>
+
+</package>
+
+
