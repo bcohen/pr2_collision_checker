@@ -33,7 +33,6 @@
 #include <string>
 #include <map>
 #include <vector>
-//#include <sbpl/config.h>
 #include <ros/ros.h>
 #include <angles/angles.h>
 #include <kdl_parser/kdl_parser.hpp>
@@ -45,7 +44,6 @@
 #include <pr2_collision_checker/sbpl_arm_planning_error_codes.h>
 #include <pr2_arm_kinematics/pr2_arm_ik_solver.h>
 #include <pr2_arm_kinematics/pr2_arm_ik.h>
-//#include <Eigen/Array>
 #include <Eigen/Core>
 #include <pr2_collision_checker/body_pose.h>
 
@@ -113,12 +111,6 @@ class SBPLArmModel{
     /** \brief parse the arm description text file */
     bool getArmDescription(FILE* fCfg);
 
-    /** \brief compute the axis angle between 2 rotation matrices */
-    double getAxisAngle(const double R1[3][3], const double R2[3][3]);
-
-    /** \brief convert RPY values to a rotation matrix */
-    void RPY2Rot(double roll, double pitch, double yaw, double Rot[3][3]);
-
     KDL::Frame computeBodyFK(const BodyPose pose);
 
     bool computeArmFK(const std::vector<double> angles, int frame_num, KDL::Frame *frame_out);
@@ -139,7 +131,7 @@ class SBPLArmModel{
     
     /** \brief compute the position {x,y,z} of the planning_joint & the axis
      * angle which represents the difference to the target frame */ 
-    bool computeEndEffPose(const std::vector<double> angles, const BodyPose pose, double R_target[3][3], double *x, double *y, double *z, double *axis_angle);
+    //bool computeEndEffPose(const std::vector<double> angles, const BodyPose pose, double R_target[3][3], double *x, double *y, double *z, double *axis_angle);
 
     /** \brief compute the inverse kinematics for the planning_joint pose */
     bool computeIK(const std::vector<double> pose, const std::vector<double> start, std::vector<double> &solution);
@@ -151,26 +143,8 @@ class SBPLArmModel{
 
     bool computeFastIK(const KDL::Frame &frame, const std::vector<double> start, std::vector<double> &solution);
 
-    /** \brief compute the positions of all the tips of the links (collision checking)*/ 
-    bool getJointPositions(const std::vector<double> angles, const BodyPose pose, const double R_target[3][3], std::vector<std::vector<double> > &links, double *axis_angle);
-  
     bool getJointPositions(const std::vector<double> angles, const BodyPose pose, std::vector<std::vector<double> > &links, KDL::Frame &f_out);
     
-    bool getJointPositions(const std::vector<double> angles, std::vector<std::vector<double> > &links, KDL::Frame &f_out) {printf("NOT IMPLEMENTED"); exit(1);};
-
-    /** \brief compute the coordinates in the world frame of the planning_joint */ 
-    bool computePlanningJointPos(const std::vector<double> angles, const BodyPose pose, double *x, double *y, double *z);
-   
-    bool getPlanningJointPose(const std::vector<double> angles, const BodyPose body_pose, std::vector<double> &pose);
-    bool getPlanningJointPose(const std::vector<double> angles, std::vector<double> &pose)
-    {
-    	printf("Called old getPlanningJointPose\n");
-    	exit(0);
-    }
-
-    /** \brief compute the pose in the world frame of the planning_joint */ 
-    bool getPlanningJointPose(const std::vector<double> angles, const BodyPose body_pose, double R_target[3][3], std::vector<double> &pose, double *axis_angle);
-
     /** \brief return true or false if angles are within specified joint limits */
     bool checkJointLimits(std::vector<double> angles, bool verbose);
 
@@ -290,12 +264,6 @@ class SBPLArmModel{
    
     //added for Cartesian Planner 
     pr2_arm_kinematics::PR2ArmIK pr2_arm_ik_;
-
-    /** \brief calculate axis angle between a KDL frame and a Rot matrix */
-    double frameToAxisAngle(const KDL::Frame frame, const double R_target[3][3]);
-   
-    /** \brief convert a rotation matrix into roll,pitch,yaw */ 
-    void getRPY(double Rot[3][3], double* roll, double* pitch, double* yaw, int solution_number);
 };
 
 

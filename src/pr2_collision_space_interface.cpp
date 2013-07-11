@@ -252,9 +252,11 @@ void PR2CollisionSpaceInterface::attachObject(const arm_navigation_msgs::Collisi
     pose_in.header = object.header;
     pose_in.header.stamp = ros::Time();
     pose_in.pose = object.poses[i];
+    ROS_ERROR("Need to transform attached object frame.");
+    /*
     try
     {
-      //tf_.transformPose(cspace_->getExpectedAttachedObjectFrame(link_name), pose_in, pose_out);
+      tf_.transformPose(cspace_->getExpectedAttachedObjectFrame(link_name), pose_in, pose_out);
     }
     catch(int e)
     {
@@ -262,6 +264,7 @@ void PR2CollisionSpaceInterface::attachObject(const arm_navigation_msgs::Collisi
       ROS_ERROR("[cspace] Failed to attach '%s' object.", object.id.c_str());
       return;
     }
+    */
     object.poses[i] = pose_out.pose;
     ROS_WARN("[cspace] Converted attached object pose of '%s' shape from %s (%0.2f %0.2f %0.2f) to %s (%0.3f %0.3f %0.3f)", obj.id.c_str(), pose_in.header.frame_id.c_str(), pose_in.pose.position.x, pose_in.pose.position.y, pose_in.pose.position.z, pose_out.header.frame_id.c_str(), pose_out.pose.position.x, pose_out.pose.position.y, pose_out.pose.position.z);
 
