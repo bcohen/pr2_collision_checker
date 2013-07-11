@@ -2072,7 +2072,7 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
   return true;
 }
 
-bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist)
+bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
   double d = 100.0;
   // arms-world, arms-arms
@@ -2087,7 +2087,7 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &langles, std
   return true;
 }
 
-bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist)
+bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
   //TODO: Check arms-arms here instead of above
 
@@ -2096,7 +2096,7 @@ bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &langles, std
 
   return true;
 }
-bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
+bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
 {
   double d = 100.0;
   dist = 100.0;
@@ -2180,13 +2180,34 @@ visualization_msgs::MarkerArray PR2CollisionSpace::getCollisionModelVisualizatio
 visualization_msgs::MarkerArray PR2CollisionSpace::getVisualization(std::string type, std::string ns, int id)
 {
   visualization_msgs::MarkerArray ma;
-
   if(ns.empty())
     ns = type;
+  
+  if(type.compare("collision_objects") == 0)
+  {
+    for(std::map<std::string, arm_navigation_msgs::CollisionObject>::const_iterator iter = object_map_.begin(); iter != object_map_.end(); ++iter)
+    {
+      std::vector<double> hue(iter->second.shapes.size(), 94);
+      ma = viz::getCollisionObjectMarkerArray(iter->second, hue, iter->second.id, 0);
+    }
+  }
+  else
+    ma = grid_->getVisualization(type);
 
-  ma = grid_->getVisualization(type);
   return ma;
 }
 
+void PR2CollisionSpace::addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name)
+{
+  arm_navigation_msgs::CollisionObject obj;
+  obj.id = name;
+  obj.operation.operation = arm_navigation_msgs::CollisionObjectOperation::ADD;
+  obj.shapes.resize(1);
+  obj.poses.push_back(pose);
+  obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
+  obj.shapes[0].triangles = triangles;
+  obj.shapes[0].vertices = vertices;
+  addCollisionObject(obj); 
+}
 
 }

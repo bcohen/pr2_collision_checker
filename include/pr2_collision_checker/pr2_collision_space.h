@@ -224,16 +224,19 @@ class PR2CollisionSpace
 
     void storeCollisionMap(const arm_navigation_msgs::CollisionMap &collision_map);
 
+    /* TAR Project  (Note: rangles first)*/
     bool checkGroupAgainstWorld(Group* group, double &dist);
     bool checkGroupAgainstGroup(Group *g1, Group *g2, double &dist);
-    bool checkRobotAgainstWorld(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
-    bool checkRobotAgainstGroup(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
-    bool checkRobotAgainstRobot(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
+    bool checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
+    bool checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
+    bool checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
 
     visualization_msgs::MarkerArray getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id);
 
     visualization_msgs::MarkerArray getVisualization(std::string type, std::string ns, int id);
 
+    void addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name);
+    
   private:
 
     /** @brief arm model used by planner */

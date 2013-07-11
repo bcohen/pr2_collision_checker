@@ -34,6 +34,7 @@
 #include <leatherman/viz.h>
 
 PViz *pviz;
+pr2_collision_checker::PR2CollisionSpace *cspace;
 
 void printRobotState(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string text)
 {
@@ -84,6 +85,20 @@ arm_navigation_msgs::RobotState fillRobotState(std::vector<double> &rangles, std
   return state;
 }
 
+bool addMesh(std::string filename, std::string name, geometry_msgs::Pose pose)
+{
+  std::vector<int32_t> triangles;
+  std::vector<geometry_msgs::Point> vertices;
+  if(!leatherman::getMeshComponentsFromResource(filename, triangles, vertices))
+  {
+    ROS_ERROR("Failed to get mesh.");
+    return false;
+  }
+
+  cspace->addCollisionObjectMesh(vertices, triangles, pose, name);
+  return true;
+}
+
 /*
 Group getGroup(geometry_msgs::Pose &pose, std::string name, std::string filename)
 {
@@ -116,7 +131,7 @@ int main(int argc, char **argv)
   double originX, originY, originZ, sizeX, sizeY, sizeZ, resolution; 
   sbpl_arm_planner::SBPLArmModel *larm, *rarm;
   //sbpl_arm_planner::OccupancyGrid *grid;
-  pr2_collision_checker::PR2CollisionSpace *cspace;
+  //pr2_collision_checker::PR2CollisionSpace *cspace;
   //pr2_collision_checker::PR2CollisionSpaceInterface *cspace_mon;
   nh.param<std::string>("planner/left_arm_description_file", larm_filename, "");
   nh.param<std::string>("planner/right_arm_description_file", rarm_filename, "");
@@ -160,22 +175,6 @@ int main(int argc, char **argv)
   fclose(rarm_fp);
   fclose(larm_fp);
 
-  /*
-  // create the occupancy grid
-  grid = new sbpl_arm_planner::OccupancyGrid(sizeX, sizeY, sizeZ, resolution, originX, originY, originZ);
-  grid->setReferenceFrame(reference_frame);
-
-  // create the collision space
-  cspace = new pr2_collision_checker::PR2CollisionSpace(rarm, larm, grid);
-  if(!cspace->init())
-  {
-    ROS_ERROR("[pr2cc] Failed to get the full body spheres from the param server.");
-    return -1;
-  }
-  else
-    cspace->printSphereGroups();
-  */
-
   std::vector<double> dims(3,0), origin(3,0);
   dims[0] = sizeX; dims[1] = sizeY; dims[2] = sizeZ;
   origin[0] = originX; origin[1] = originY; origin[2] = originZ;
@@ -205,6 +204,15 @@ int main(int argc, char **argv)
   p.position.x = 3; p.position.y = -3; p.position.z = 3.0; p.orientation.w = 1;
   p1 = p;
   p1.position.x += 0.0; p1.position.y += 0.6; p1.position.z -= 0.5;
+
+  geometry_msgs::Pose op;
+  op.position.x = 0; op.position.y = 0; op.position.z = 1.5; op.orientation.w = 1;
+  //if(!addMesh("/opt/ros/groovy/stacks/pr2_common/pr2_description/meshes/torso_v0/torso_lift.stl", "object", op))
+  if(!addMesh("package://pr2_description/meshes/torso_v0/torso_lift.stl", "object", op))
+  {
+    ROS_ERROR("Failed to add object mesh to scene.");
+    return 1;
+  }
 
   for(size_t i = 0; i < 100; ++i)
   {
@@ -265,6 +273,10 @@ int main(int argc, char **argv)
     ma.markers.push_back(m1);
     pviz->publishMarkerArray(ma);
     ma = cspace->getVisualization("bounds", "bounds", 0);
+    pviz->publishMarkerArray(ma);
+    ma = cspace->getVisualization("distance_field", "distance_field", 0);
+    pviz->publishMarkerArray(ma);
+    ma = cspace->getVisualization("collision_objects", "collision_objects", 0);
     pviz->publishMarkerArray(ma);
     sleep(1.0);
     pviz->deleteVisualizations("collision_model", 400);
