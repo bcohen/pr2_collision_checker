@@ -139,7 +139,7 @@ class PR2CollisionSpace
 
     bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
 
-    bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
+    bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code, bool self=true);
 
     bool checkCollision(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
 

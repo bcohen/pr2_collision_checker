@@ -135,7 +135,7 @@ bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, c
   return checkCollisionArms(langles,rangles,pose,verbose,dist,code);
 }
 
-bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
+bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code, bool self)
 {
   double dist_temp = 100.0;
   
@@ -143,7 +143,7 @@ bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, c
   if(!checkCollision(rangles, pose, 0, verbose, dist_temp))
   {
     if(verbose)
-      ROS_INFO("  Right arm is in collision with the environment. (dist: %d)", int(dist_temp));
+      ROS_INFO("  Right arm is in collision with the environment. (dist: %0.3fm)", dist_temp);
     dist = dist_temp;
     debug_code = sbpl_arm_planner::RIGHT_ARM_IN_COLLISION;
     return false;
@@ -166,15 +166,18 @@ bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, c
     ROS_INFO("[Left]  dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
  
   //check the arms against each other
-  if(!checkCollisionBetweenArms(langles,rangles, pose, verbose, dist_temp))
+  if(self)
   {
-    if(verbose)
-      ROS_INFO("  Arms are in collision with each other. (dist %d)", int(dist_temp));
-    dist = dist_temp;
-    debug_code = sbpl_arm_planner::COLLISION_BETWEEN_ARMS;
-    return false;
+    if(!checkCollisionBetweenArms(langles,rangles, pose, verbose, dist_temp))
+    {
+      if(verbose)
+        ROS_INFO("  Arms are in collision with each other. (dist %0.3fm)", dist_temp);
+      dist = dist_temp;
+      debug_code = sbpl_arm_planner::COLLISION_BETWEEN_ARMS;
+      return false;
+    }
+    dist = min(dist_temp,dist);
   }
-  dist = min(dist_temp,dist);
 
   if(verbose)
     ROS_INFO("[Both]  dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
@@ -2074,9 +2077,9 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
 
 bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
-  double d = 100.0;
-  // arms-world, arms-arms
-  if(!checkCollisionArms(langles, rangles, pose, verbose, dist))
+  double d = 100.0; int debug_code=100;
+  // arms-world
+  if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code, false))
     return false;
 
   // body-world
@@ -2089,11 +2092,20 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
 
 bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
-  //TODO: Check arms-arms here instead of above
+  //arms-arms
+  double d = 100.0;
+  if(!checkCollisionBetweenArms(langles,rangles, pose, verbose, d))
+  {
+    if(verbose)
+      ROS_INFO("  Arms are in collision with each other. (dist %0.3fm)", d);
+    return false;
+  }
 
+  //arms-body
   if(!checkCollisionArmsToBody(langles, rangles, pose, dist))
     return false;
 
+  dist = min(d,dist);
   return true;
 }
 bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
@@ -2189,6 +2201,7 @@ visualization_msgs::MarkerArray PR2CollisionSpace::getVisualization(std::string 
     {
       std::vector<double> hue(iter->second.shapes.size(), 94);
       ma = viz::getCollisionObjectMarkerArray(iter->second, hue, iter->second.id, 0);
+      ROS_DEBUG("Got collision object marker array with %d markers in it.", int(ma.markers.size()));
     }
   }
   else
@@ -2200,6 +2213,7 @@ visualization_msgs::MarkerArray PR2CollisionSpace::getVisualization(std::string 
 void PR2CollisionSpace::addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name)
 {
   arm_navigation_msgs::CollisionObject obj;
+  obj.header.frame_id = grid_->getReferenceFrame();
   obj.id = name;
   obj.operation.operation = arm_navigation_msgs::CollisionObjectOperation::ADD;
   obj.shapes.resize(1);
@@ -2207,6 +2221,7 @@ void PR2CollisionSpace::addCollisionObjectMesh(const std::vector<geometry_msgs::
   obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
   obj.shapes[0].triangles = triangles;
   obj.shapes[0].vertices = vertices;
+  object_map_[obj.id] = obj;
   addCollisionObject(obj); 
 }
 

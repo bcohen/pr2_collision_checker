@@ -96,6 +96,13 @@ bool addMesh(std::string filename, std::string name, geometry_msgs::Pose pose)
   }
 
   cspace->addCollisionObjectMesh(vertices, triangles, pose, name);
+  
+  geometry_msgs::PoseStamped ps;
+  ps.pose = pose;
+  ps.header.frame_id = "map";
+  visualization_msgs::Marker m = viz::getMeshMarker(ps, filename, 180, "collision_object", 0);
+  pviz->publishMarker(m);
+
   return true;
 }
 
@@ -206,8 +213,7 @@ int main(int argc, char **argv)
   p1.position.x += 0.0; p1.position.y += 0.6; p1.position.z -= 0.5;
 
   geometry_msgs::Pose op;
-  op.position.x = 0; op.position.y = 0; op.position.z = 1.5; op.orientation.w = 1;
-  //if(!addMesh("/opt/ros/groovy/stacks/pr2_common/pr2_description/meshes/torso_v0/torso_lift.stl", "object", op))
+  op.position.x = 0; op.position.y = 0; op.position.z = 1.1; op.orientation.w = 1;
   if(!addMesh("package://pr2_description/meshes/torso_v0/torso_lift.stl", "object", op))
   {
     ROS_ERROR("Failed to add object mesh to scene.");
