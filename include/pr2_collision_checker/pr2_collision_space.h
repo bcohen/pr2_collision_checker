@@ -127,8 +127,10 @@ class PR2CollisionSpace
   public:
     /* constructors */
     PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, sbpl_arm_planner::SBPLArmModel* left_arm, sbpl_arm_planner::OccupancyGrid* grid);
+    
+    PR2CollisionSpace(std::string rarm_file, std::string larm_file, std::vector<double> &dims, std::vector<double> &origin, double resolution, std::string frame_id);
 
-    ~PR2CollisionSpace(){};
+    ~PR2CollisionSpace();
 
     bool init();
 
@@ -226,6 +228,11 @@ class PR2CollisionSpace
     bool checkGroupAgainstGroup(Group *g1, Group *g2, double &dist);
     bool checkRobotAgainstWorld(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
     bool checkRobotAgainstGroup(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
+    bool checkRobotAgainstRobot(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
+
+    visualization_msgs::MarkerArray getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id);
+
+    visualization_msgs::MarkerArray getVisualization(std::string type, std::string ns, int id);
 
   private:
 
@@ -250,6 +257,8 @@ class PR2CollisionSpace
 
     /** @brief temporary variable that's used often */
     KDL::Frame frame_;
+
+    bool delete_objects_;
 
     /* attached objects */
     bool is_object_attached_;

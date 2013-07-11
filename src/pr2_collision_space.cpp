@@ -29,18 +29,12 @@
  /** \author Benjamin Cohen */
 
 #include <pr2_collision_checker/pr2_collision_space.h>
+#include <leatherman/viz.h>
 
 #define SMALL_NUM  0.00000001     // to avoid division overflow
 
 namespace pr2_collision_checker
 {
-
-/*
-double distance(const KDL::Vector& a, const KDL::Vector& b)
-{
-	return sqrt((a.x()-b.x())*(a.x()-b.x()) + (a.y()-b.y())*(a.y()-b.y()) + (a.z()-b.z())*(a.z()-b.z()));
-}
-*/
 
 double distance(const int a[], const int b[])
 {
@@ -54,12 +48,64 @@ PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, 
   arm_[1] = left_arm;
   object_filling_sphere_radius_ = 0.04;
 
+  delete_objects_ = false;
   cspace_log_ = "cspace";
   attached_object_frame_suffix_ = "_wrist_roll_link";
 
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
   inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
+}
+    
+PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm_filename, std::vector<double> &dims, std::vector<double> &origin, double resolution, std::string frame_id)
+{
+  arm_.resize(2);
+  FILE* rarm_fp=NULL;
+  FILE* larm_fp=NULL;
+
+  // create the left & right arm models
+  if((rarm_fp=fopen(rarm_filename.c_str(),"r")) == NULL)
+    ROS_ERROR("[pr2cc] Failed to open right arm description file.");
+  if((larm_fp=fopen(larm_filename.c_str(),"r")) == NULL)
+    ROS_ERROR("[pr2cc] Failed to open left arm description file.");
+  
+  arm_[0] = new sbpl_arm_planner::SBPLArmModel(rarm_fp);
+  arm_[1] = new sbpl_arm_planner::SBPLArmModel(larm_fp);
+  arm_[0]->setResolution(resolution);
+  arm_[1]->setResolution(resolution);
+  arm_[0]->setDebugLogName("rarm");
+  arm_[1]->setDebugLogName("larm");
+  ROS_INFO("Initialized Arms");
+
+  if(!arm_[0]->initKDLChainFromParamServer() || !arm_[1]->initKDLChainFromParamServer())
+  {
+    ROS_ERROR("[pr2cc] Failed to initialize arm models.");
+  }
+  fclose(rarm_fp);
+  fclose(larm_fp);
+
+  // create the occupancy grid
+  grid_ = new sbpl_arm_planner::OccupancyGrid(dims[0], dims[1], dims[2], resolution, origin[0], origin[1], origin[2]);
+  grid_->setReferenceFrame(frame_id);
+
+  delete_objects_ = true;
+
+  cspace_log_ = "cspace";
+  attached_object_frame_suffix_ = "_wrist_roll_link";
+
+  inc_.resize(arm_[0]->num_joints_,0.0348);
+  inc_[5] = 0.1392; // 8 degrees
+  inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
+}
+
+PR2CollisionSpace::~PR2CollisionSpace()
+{
+  if(delete_objects_)
+  {
+    delete arm_[0];
+    delete arm_[1];
+    delete grid_;
+  }
 }
 
 bool PR2CollisionSpace::init()
@@ -506,8 +552,6 @@ bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &lan
     return false;
 
   //measure distance between links of each arms
-  ROS_DEBUG_NAMED(cspace_log_,"right arm joints: %d  left arm joints: %d",int(rjnts.size()), int(ljnts.size()));
-
   for(size_t i = 0; i < rjnts.size()-1; ++i)
   {
     for(size_t j = 0; j < ljnts.size()-1; ++j)
@@ -529,7 +573,7 @@ bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &lan
       else
       {
         if(verbose)
-          ROS_INFO("Distance between right link %d and left link %d is %0.3fm", int(i), int(j), d);
+          ROS_DEBUG_NAMED(cspace_log_, "Distance between right link %d and left link %d is %0.3fm", int(i), int(j), d);
       }
 
       if(d < d_min)
@@ -539,76 +583,6 @@ bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &lan
   dist = d_min;
   return true;
 }
-
-/*
-void PR2CollisionSpace::getInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, double inc, std::vector<std::vector<double> > &path)
-{
-  bool changed = true; 
-  std::vector<double> next(start);
-  
-  //check if both input configurations have same size
-  if(start.size() != end.size())
-  {
-    ROS_WARN("[getInterpolatedPath] The start and end configurations have different sizes.\n");
-    return;
-  }
-
-  while(changed)
-  {
-    changed = false;
-
-    for (int i = 0; i < int(start.size()); i++) 
-    {
-      if (fabs(next[i] - end[i]) > inc) 
-      {
-        changed = true;
-        
-        if(end[i] > next[i]) 
-          next[i] += inc;
-        else
-          next[i] += -inc;
-      }
-    }
-
-    if (changed)
-      path.push_back(next);
-  }
-}
-
-void PR2CollisionSpace::getInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, std::vector<double> &inc, std::vector<std::vector<double> > &path)
-{
-  bool changed = true; 
-  std::vector<double> next(start);
-  
-  //check if both input configurations have same size
-  if(start.size() != end.size())
-  {
-    ROS_WARN("[getInterpolatedPath] The start and end configurations have different sizes.\n");
-    return;
-  }
-
-  while(changed)
-  {
-    changed = false;
-
-    for (int i = 0; i < int(start.size()); i++) 
-    {
-      if (fabs(next[i] - end[i]) > inc[i]) 
-      {
-        changed = true;
-        
-        if(end[i] > next[i]) 
-          next[i] += inc[i];
-        else
-          next[i] += -inc[i];
-      }
-    }
-
-    if (changed)
-      path.push_back(next);
-  }
-}
-*/
 
 void PR2CollisionSpace::getFixedLengthInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, int path_length, std::vector<std::vector<double> > &path)
 {
@@ -2113,6 +2087,15 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &langles, std
   return true;
 }
 
+bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist)
+{
+  //TODO: Check arms-arms here instead of above
+
+  if(!checkCollisionArmsToBody(langles, rangles, pose, dist))
+    return false;
+
+  return true;
+}
 bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
 {
   double d = 100.0;
@@ -2160,5 +2143,50 @@ bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &langles, std
 
   return true;
 }
+
+visualization_msgs::MarkerArray PR2CollisionSpace::getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id)
+{
+  visualization_msgs::MarkerArray ma;
+  std::vector<std::vector<double> > spheres, all_spheres;
+  std::vector<int> hues, all_hues;
+  std::string frame;
+
+  std::vector<std::string> sphere_groups(12);
+  sphere_groups[0] = "base";
+  sphere_groups[1] = "torso_upper";
+  sphere_groups[2] = "torso_lower";
+  sphere_groups[3] = "turrets";
+  sphere_groups[4] = "tilt_laser";
+  sphere_groups[5] = "head";
+  sphere_groups[6] = "left_gripper";
+  sphere_groups[7] = "right_gripper";
+  sphere_groups[8] = "left_forearm";
+  sphere_groups[9] = "right_forearm";
+  sphere_groups[10] = "right_arm";
+  sphere_groups[11] = "left_arm";
+
+  for(std::size_t i = 0; i < sphere_groups.size(); ++i)
+  {
+    getCollisionSpheres(langles, rangles, body_pos, sphere_groups[i], spheres);
+    all_spheres.insert(all_spheres.end(), spheres.begin(), spheres.end());
+    hues.clear();
+    hues.resize(spheres.size(), (i+1)*20);
+    all_hues.insert(all_hues.end(), hues.begin(), hues.end());
+  }
+  ma = viz::getSpheresMarkerArray(all_spheres, all_hues, grid_->getReferenceFrame(), ns, id);
+  return ma;
+}
+
+visualization_msgs::MarkerArray PR2CollisionSpace::getVisualization(std::string type, std::string ns, int id)
+{
+  visualization_msgs::MarkerArray ma;
+
+  if(ns.empty())
+    ns = type;
+
+  ma = grid_->getVisualization(type);
+  return ma;
+}
+
 
 }
