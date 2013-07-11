@@ -42,13 +42,13 @@
 #include <kdl/chain.hpp>
 #include <kdl/frames.hpp>
 #include <tf_conversions/tf_kdl.h>
-#include <tf/tf.h>
 #include <leatherman/bresenham.h>
 #include <leatherman/utils.h>
 #include <pr2_collision_checker/sbpl_arm_model.h>
 #include <pr2_collision_checker/sbpl_arm_planning_error_codes.h>
 #include <sbpl_manipulation_components/occupancy_grid.h>
 #include <sbpl_geometry_utils/Voxelizer.h>
+#include <sbpl_geometry_utils/Interpolator.h>
 #include <sbpl_geometry_utils/SphereEncloser.h>
 #include <arm_navigation_msgs/CollisionObject.h>
 
@@ -113,7 +113,6 @@ typedef struct
 
 typedef struct
 {
-  //bool attached;
   Side side;   // 0: right, 1: left
   std::string name;
   int kdl_segment;
@@ -131,38 +130,35 @@ class PR2CollisionSpace
 
     ~PR2CollisionSpace(){};
 
+    bool init();
+
     /* collision checking */
-    bool checkCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, bool verbose, unsigned char &dist);
+    bool checkCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, bool verbose, double &dist);
 
-    bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist);
+    bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
 
-    bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
+    bool checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
 
-    bool checkCollision(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
+    bool checkCollision(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
 
-    bool checkLinkForCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, int link_num, bool verbose, unsigned char &dist);
+    bool checkLinkForCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, int link_num, bool verbose, double &dist);
 
-    bool checkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, bool verbose, unsigned char &dist);
+    bool checkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, bool verbose, double &dist);
 
-    bool checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, unsigned char &dist);
+    bool checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, double &dist);
     
-    bool checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
+    bool checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, double &dist, int &debug_code);
       
-    bool checkLinkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, int link_num, bool verbose, unsigned char &dist);
+    bool checkLinkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, int link_num, bool verbose, double &dist);
     
-    bool checkCollisionBetweenArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist);
-
-    void getLineSegment(const std::vector<int> a,const std::vector<int> b,std::vector<std::vector<int> > &points);
+    bool checkCollisionBetweenArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
 
     /* linearly interpolate trajectories */
-    void getInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, double inc, std::vector<std::vector<double> > &path);
-    void getInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, std::vector<double> &inc, std::vector<std::vector<double> > &path);
     void getFixedLengthInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, int path_length, std::vector<std::vector<double> > &path);
 
     /* access grid */ 
-    inline bool isValidCell(const int x, const int y, const int z, const int radius);
-    unsigned char isValidLineSegment(const std::vector<int> a,const std::vector<int> b,const short unsigned int radius);
-    
+    double isValidLineSegment(const std::vector<int> a, const std::vector<int> b, double radius);
+ 
     /** collision objects **/
     void addArmCuboidsToGrid(char i_arm);
     void processCollisionObjectMsg(const arm_navigation_msgs::CollisionObject &object);
@@ -181,19 +177,12 @@ class PR2CollisionSpace
     void attachMesh(std::string name, std::string link, geometry_msgs::Pose pose, const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles);
     void getAttachedObjectSpheres(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, std::vector<std::vector<double> > &spheres);
     void getAttachedObjectVoxels(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, std::vector<std::vector<int> > &voxels);
-    bool isAttachedObjectValid(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
-
-    void setAttachedRobotLinkToMultiDofTransform(KDL::Frame& transform);
+    bool isAttachedObjectValid(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
 
     /* kinematics & transformations */
     bool getJointPosesInGrid(const sbpl_arm_planner::SBPLArmModel* arm, std::vector<double> angles, BodyPose &pose, std::vector<std::vector<int> > &jnts, bool verbose);
     bool getJointPosesInGrid(const std::vector<double> angles, BodyPose &pose, char i_arm, std::vector<std::vector<int> > &jnts);
     void transformPose(const std::string &current_frame, const std::string &desired_frame, const geometry_msgs::Pose &pose_in, geometry_msgs::Pose &pose_out);
-
-    /* debugging */
-    std::string code_;
-    void setDebugFile(FILE* file_ptr){fOut_ = file_ptr;};
-    void setDebugLogName(std::string name){cspace_log_ = name;};
 
     /* full body planning */
     bool getCollisionLinks();
@@ -208,23 +197,22 @@ class PR2CollisionSpace
     void getPointsInGroup(KDL::Frame &frame, Group &group, std::vector<std::vector<double> > &points);
     void setNonPlanningJointPosition(std::string name, double value);
 
-    //TODO: These don't check bounds yet. Add that in...
-    bool isBaseValid(double x, double y, double theta, unsigned char &dist);
-    bool isTorsoValid(double x, double y, double theta, double torso, unsigned char &dist);
-    bool isHeadValid(double x, double y, double theta, double torso, unsigned char &dist);
-    bool isBodyValid(double x, double y, double theta, double torso, unsigned char &dist);
-    bool checkCollisionArmsToBody(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, unsigned char &dist);
+    bool isBaseValid(double x, double y, double theta, double &dist);
+    bool isTorsoValid(double x, double y, double theta, double torso, double &dist);
+    bool isHeadValid(double x, double y, double theta, double torso, double &dist);
+    bool isBodyValid(double x, double y, double theta, double torso, double &dist);
+    bool checkCollisionArmsToBody(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, double &dist);
 
     void getCollisionSpheres(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, std::string group_name, std::vector<std::vector<double> > &spheres);
 
     void printGroupVoxels(Group &g, std::string text);
 
-    bool checkArmsMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
-    bool checkBaseMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
-    bool checkSpineMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
-    bool checkAllMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code);
+    bool checkArmsMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
+    bool checkBaseMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
+    bool checkSpineMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
+    bool checkAllMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code);
 
-    std::string getExpectedAttachedObjectFrame(std::string frame);
+    //std::string getExpectedAttachedObjectFrame(std::string frame);
 
     void setKinematicsToReferenceTransform(KDL::Frame f, std::string &name);
 
@@ -234,7 +222,10 @@ class PR2CollisionSpace
 
     void storeCollisionMap(const arm_navigation_msgs::CollisionMap &collision_map);
 
-    std::vector<Eigen::Vector3d> btVectorToEigenVector(const std::vector<btVector3> &bt);
+    bool checkGroupAgainstWorld(Group* group, double &dist);
+    bool checkGroupAgainstGroup(Group *g1, Group *g2, double &dist);
+    bool checkRobotAgainstWorld(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist);
+    bool checkRobotAgainstGroup(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
 
   private:
 
@@ -244,22 +235,17 @@ class PR2CollisionSpace
     /** @brief occupancy grid used by planner */
     sbpl_arm_planner::OccupancyGrid* grid_;
 
-    /** @brief the file for dumping debug output */
-    FILE* fOut_;
-
     std::string cspace_log_;
 
     /** \brief map from object id to object details */
     std::map<std::string, arm_navigation_msgs::CollisionObject> object_map_;
 
     /** \brief map from object id to list of occupying voxels */
-    std::map<std::string, std::vector<btVector3> > object_voxel_map_;
-    //std::map<std::string, std::vector<Eigen::Vector3d> > object_voxel_map_;
+    std::map<std::string, std::vector<Eigen::Vector3d> > object_voxel_map_;
 
     std::vector<std::string> known_objects_;
-
-    tf::TransformListener tf_;
-
+    std::vector<std::vector<double> > arm_min_limits_;
+    std::vector<std::vector<double> > arm_max_limits_;
     std::vector<double> inc_;
 
     /** @brief temporary variable that's used often */
@@ -276,14 +262,7 @@ class PR2CollisionSpace
     KDL::Frame attached_robot_link_in_multi_dof_; ///< Pose of attached robot link in multi-dof joint frame
     KDL::Frame attached_object_in_multi_dof_; ///< Pose of attached object in multi-dof joint frame
 
-    double cube_filling_sphere_radius_;
-
-     /** @brief get the shortest distance between two 3D line segments */
-    double distanceBetween3DLineSegments(std::vector<int> l1a, std::vector<int> l1b,std::vector<int> l2a,std::vector<int> l2b);
-    inline bool isValidPoint(double &x, double &y, double &z, short unsigned int &radius, unsigned char &dist);
-    inline int getDistanceBetweenPoints(int &x1, int &y1, int &z1, int &x2, int &y2, int &z2);
-
-    void getIntermediatePoints(KDL::Vector a, KDL::Vector b, double d, std::vector<KDL::Vector>& points);
+    double object_filling_sphere_radius_;
 
     /* full body planning */
     std::vector<CollisionLink> cl_;
@@ -316,41 +295,18 @@ class PR2CollisionSpace
     double head_pan_angle_;
     double head_tilt_angle_;
 
-    bool checkCollisionArmsToGroup(Group &group, unsigned char &dist);
+    bool checkCollisionArmsToGroup(Group &group, double &dist);
 
     /* ---- attached object ---- */
     std::vector<AttachedObject> objects_;
     std::string attached_object_frame_suffix_;
 
     int getAttachedObjectIndex(std::string name);
-
-    bool getAttachedFrameInfo(std::string frame, int &segment, int &chain);
+    //bool getAttachedFrameInfo(std::string frame, int &segment, int &chain);
     int getSegmentIndex(std::string &name, KDL::Chain &chain);
 
     arm_navigation_msgs::CollisionMap last_collision_map_;
 };
-
-inline bool PR2CollisionSpace::isValidCell(const int x, const int y, const int z, const int radius)
-{
-  if(grid_->getCell(x,y,z) <= radius)
-    return false;
-  return true;
-}
-
-inline bool PR2CollisionSpace::isValidPoint(double &x, double &y, double &z, short unsigned int &radius, unsigned char &dist)
-{
-  int xyz_c[3]={0};
-  grid_->worldToGrid(x,y,z,xyz_c[0], xyz_c[1], xyz_c[2]);
-
-  if((dist = grid_->getCell(xyz_c[0],xyz_c[1],xyz_c[2])) <= radius)
-    return false;
-  return true;
-}
-
-inline int PR2CollisionSpace::getDistanceBetweenPoints(int &x1, int &y1, int &z1, int &x2, int &y2, int &z2)
-{
-  return int(sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) + (z1-z2)*(z1-z2))+0.5);
-}
 
 } 
 #endif

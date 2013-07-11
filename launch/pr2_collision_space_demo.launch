@@ -1,5 +1,7 @@
 <launch>
-    <node pkg="topic_tools" type="throttle" name="throttle_joint_states" args="messages joint_states 4.0"/>
+    <param name="robot_description" command="$(find xacro)/xacro.py '$(find pr2_description)/robots/pr2.urdf.xacro'" />
+
+  <!-- <node pkg="topic_tools" type="throttle" name="throttle_joint_states" args="messages joint_states 4.0"/> -->
 
     <node pkg="pr2_collision_checker" type="testPR2CollisionChecker" name="pr2_collision_checker" output="screen" >
         <rosparam file="$(find pr2_collision_checker)/config/pr2_both_arms.yaml" command="load"/>

@@ -1,6 +1,8 @@
 #ifndef BODY_POSE_H
 #define BODY_POSE_H
 
+#include <ros/console.h>
+
 class BodyPose{
   public:
     BodyPose(){};
@@ -14,6 +16,11 @@ class BodyPose{
     double y;
     double z;
     double theta;
+
+    void print(std::string text="")
+    {
+      ROS_INFO("[%s] x: %0.3f  y: % 0.3f  z: %0.3f yaw: % 0.3f", text.c_str(), x, y, z, theta);
+    }
 };
 
 class BodyCell{

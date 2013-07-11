@@ -33,7 +33,7 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <sbpl/config.h>
+//#include <sbpl/config.h>
 #include <ros/ros.h>
 #include <angles/angles.h>
 #include <kdl_parser/kdl_parser.hpp>
@@ -212,10 +212,6 @@ class SBPLArmModel{
     double getMaxJointLimit(int joint_num);
 
     double getMinJointLimit(int joint_num);
-
-    bool computeTranslationalIK(const std::vector<double> pose, double upperarm_roll, std::vector<double> &solution);
-
-    //int getJointLimitDebugCode(const int &joint);
 
     int getSegmentIndex(std::string &name);
 

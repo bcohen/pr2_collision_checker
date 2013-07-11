@@ -18,6 +18,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 rosbuild_add_library(pr2_collision_checker src/sbpl_arm_model.cpp
                                            src/pr2_collision_space.cpp
+                                           src/pr2_collision_space_interface.cpp
                                            src/pr2_collision_space_monitor.cpp)
 target_link_libraries(pr2_collision_checker leatherman sbpl_manipulation_components sbpl_geometry_utils)
 

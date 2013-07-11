@@ -54,7 +54,7 @@ SBPLArmModel::SBPLArmModel(FILE* arm_file) : fk_solver_(NULL), pr2_arm_ik_solver
 
   //parse arm description file
   if(!getArmDescription(arm_file))
-    SBPL_WARN("[arm] Parsing of sbpl arm description file failed. Will attempt to use defaults.");
+    ROS_WARN("[arm] Parsing of sbpl arm description file failed. Will attempt to use defaults.");
  
   debug_log_ = "arm";
   max_radius_ = 0;
@@ -84,19 +84,19 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
   int i;
 
   if(fscanf(fCfg,"%s",sTemp) < 1)
-    SBPL_WARN("Parsed string has length < 1.");
+    ROS_WARN("Parsed string has length < 1.");
   while(!feof(fCfg) && strlen(sTemp) != 0)
   {
     if(strcmp(sTemp, "name:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       name_ = sTemp;
     }
     else if(strcmp(sTemp, "number_of_joints:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       num_joints_ = atoi(sTemp);
       joints_.resize(num_joints_);
       if(num_joints_ < 6)
@@ -105,7 +105,7 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
     else if(strcmp(sTemp, "number_of_links:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       num_links_ = atoi(sTemp);
       links_.resize(num_links_);
       if(num_links_ < 2)
@@ -114,25 +114,25 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
     else if(strcmp(sTemp, "index_of_planning_joint:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       planning_joint_ = atoi(sTemp);
     }
     else if(strcmp(sTemp, "kdl_chain_root_name:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       chain_root_name_.assign(sTemp);
     }
     else if(strcmp(sTemp, "kdl_chain_tip_name:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       chain_tip_name_.assign(sTemp);
     }
     else if(strcmp(sTemp, "planning_joint_name:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1) 
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       planning_joint_name_.assign(sTemp);
     }
     else if(strcmp(sTemp, "min_joint_limits:") == 0)
@@ -140,7 +140,7 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
       for(i = 0; i < num_joints_; i++)
       {
         if(fscanf(fCfg,"%s",sTemp) < 1)
-          SBPL_WARN("Parsed string has length < 1.");
+          ROS_WARN("Parsed string has length < 1.");
         joints_[i].min = atof(sTemp);
 
         if(joints_[i].min != 0.0)
@@ -152,7 +152,7 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
       for(i = 0; i < num_joints_; i++)
       {
         if(fscanf(fCfg,"%s",sTemp) < 1)
-          SBPL_WARN("Parsed string has length < 1.");
+          ROS_WARN("Parsed string has length < 1.");
         joints_[i].max = atof(sTemp);
         
         if(joints_[i].max != 0.0)
@@ -164,7 +164,7 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
       for(i = 0; i < num_links_; i++)
       {
         if(fscanf(fCfg,"%s",sTemp) < 1)
-          SBPL_WARN("Parsed string has length < 1.");
+          ROS_WARN("Parsed string has length < 1.");
         links_[i].radius = atof(sTemp);
       }
     }
@@ -173,20 +173,20 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
       for(i = 0; i < num_links_; i++)
       {
         if(fscanf(fCfg,"%s",sTemp) < 1)
-          SBPL_WARN("Parsed string has length < 1.");
+          ROS_WARN("Parsed string has length < 1.");
         links_[i].length = atof(sTemp);
       }
     }
     else if(strcmp(sTemp, "ik_search_discretization(radians):") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1)
-        SBPL_WARN("Parsed string has length < 1.");
+        ROS_WARN("Parsed string has length < 1.");
       ik_search_inc_ = atof(sTemp);
     }
     else if(strcmp(sTemp, "collision_cuboids:") == 0)
     {
       if(fscanf(fCfg,"%s",sTemp) < 1)
-          SBPL_WARN("Parsed string has length < 1.");
+          ROS_WARN("Parsed string has length < 1.");
      
       num_collision_cuboids_  = atoi(sTemp);
       collision_cuboids_.resize(num_collision_cuboids_);
@@ -196,11 +196,11 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
         for(int j = 0; j < 6; j++)
         {
           if(fscanf(fCfg,"%s",sTemp) < 1)
-            SBPL_WARN("Parsed string has length < 1.");
+            ROS_WARN("Parsed string has length < 1.");
           collision_cuboids_[i][j] = atof(sTemp);
         }
       }
-      SBPL_DEBUG("Number of collision cuboids: %d", num_collision_cuboids_);
+      ROS_DEBUG("Number of collision cuboids: %d", num_collision_cuboids_);
     }
     else if(strcmp(sTemp, "kdl_indeces_of_link_tips:") == 0)
     {
@@ -208,14 +208,14 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
       for(i = 0; i < num_links_ + 1; i++)
       {
         if(fscanf(fCfg,"%s",sTemp) < 1)
-          SBPL_WARN("Parsed string has length < 1.");
+          ROS_WARN("Parsed string has length < 1.");
 
         joint_indeces_[i] = atoi(sTemp);
       }
     }
     
     if(fscanf(fCfg,"%s",sTemp) < 1)
-      SBPL_DEBUG("Parsed string has length < 1.");
+      ROS_DEBUG("Parsed string has length < 1.");
   }
 
   if(name_.compare("left_arm") == 0 || name_.compare("left") == 0)
@@ -239,7 +239,7 @@ bool SBPLArmModel::getArmDescription(FILE* fCfg)
     debug_code_types_.push_back(sbpl_arm_planner::INVALID_RIGHT_WRIST_ROLL_ANGLE);
   }
 
-  SBPL_DEBUG("[arm] Finished parsing arm file.");
+  ROS_DEBUG("[arm] Finished parsing arm file.");
   return true;
 }
 
@@ -273,7 +273,7 @@ bool SBPLArmModel::initKDLChainFromParamServer()
 
   if(robot_description.empty())
   {
-    SBPL_ERROR("[arm] Unable to get robot_description from rosparam server.");
+    ROS_ERROR("[arm] Unable to get robot_description from rosparam server.");
     return false;
   }
 
@@ -284,13 +284,13 @@ bool SBPLArmModel::initKDLChain(const std::string &fKDL)
 {
   if (!kdl_parser::treeFromString(fKDL, kdl_tree_))
   {
-    SBPL_ERROR("[arm] Failed to parse tree from manipulator description file.");
+    ROS_ERROR("[arm] Failed to parse tree from manipulator description file.");
     return false;;
   }
 
   if (!kdl_tree_.getChain(chain_root_name_, chain_tip_name_, chain_))
   {
-    SBPL_ERROR("[arm] Error: could not fetch the KDL chain for the desired manipulator. Exiting."); 
+    ROS_ERROR("[arm] Error: could not fetch the KDL chain for the desired manipulator. Exiting."); 
     return false;
   }
 
@@ -307,7 +307,7 @@ bool SBPLArmModel::initKDLChain(const std::string &fKDL)
 
   if(!pr2_arm_ik_solver_->active_)
   {
-    SBPL_ERROR("[arm] Error: the IK solver is NOT active.");
+    ROS_ERROR("[arm] Error: the IK solver is NOT active.");
     return false;
   }
 
@@ -323,7 +323,7 @@ bool SBPLArmModel::initKDLChain(const std::string &fKDL)
 
   // added for Cartesian Planner
   if(!pr2_arm_ik_.init(robot_model_, "torso_lift_link", planning_joint_name_))
-    SBPL_ERROR("[arm] Failed to initialize pr2_arm_ik.");
+    ROS_ERROR("[arm] Failed to initialize pr2_arm_ik.");
 
   pr2_arm_ik_.getSolverInfo(ik_info);
   ROS_DEBUG_NAMED(debug_log_, "[%s] PR2ArmIK Info:", name_.c_str());
@@ -339,7 +339,7 @@ void SBPLArmModel::parseKDLTree()
 {
   num_kdl_joints_ = kdl_tree_.getNrOfJoints();
 
-  SBPL_DEBUG("%d KDL joints:",num_kdl_joints_);
+  ROS_DEBUG("%d KDL joints:",num_kdl_joints_);
 
   // create the joint_segment_mapping, which used to be created by the URDF -> KDL parser
   // but not any more, but the rest of the code depends on it, so we simply generate the mapping here:
@@ -350,7 +350,7 @@ void SBPLArmModel::parseKDLTree()
     if (it->second.segment.getJoint().getType() != KDL::Joint::None)
     {
       std::string joint_name = it->second.segment.getJoint().getName();
-      SBPL_DEBUG("%s",joint_name.c_str());
+      ROS_DEBUG("%s",joint_name.c_str());
       std::string segment_name = it->first;
       joint_segment_mapping_.insert(make_pair(joint_name, segment_name));
     }
@@ -440,7 +440,7 @@ bool SBPLArmModel::computeArmFK(const std::vector<double> angles, int frame_num,
 
   if(fk_solver_->JntToCart(jnt_pos_in_, *frame_out, frame_num) < 0)
   {
-    SBPL_ERROR("JntToCart returned < 0. Exiting.");
+    ROS_ERROR("JntToCart returned < 0. Exiting.");
     return false;
   }
 
@@ -509,35 +509,6 @@ bool SBPLArmModel::computeFK(const std::vector<double> angles, const BodyPose po
   }
 
   return false;
-}
-
-bool SBPLArmModel::computeEndEffPose(const std::vector<double> angles, const BodyPose pose, double  R_target[3][3], double* x, double* y, double* z, double* axis_angle)
-{
-  KDL::Frame f_endeff;
-
-  if(computeFK(angles, pose, planning_joint_, &f_endeff))
-  {
-    *x = f_endeff.p[0];
-    *y = f_endeff.p[1];
-    *z = f_endeff.p[2];
-
-    *axis_angle = frameToAxisAngle(f_endeff, R_target);
-    return true;
-  }
-  return false;
-}
-
-double SBPLArmModel::frameToAxisAngle(const KDL::Frame frame, const double R_target[3][3])
-{
-  double R_endeff[3][3];
-
-  //end effector rotation matrix
-  for(unsigned int i = 0; i < 3; i++)
-    for(unsigned int j = 0; j < 3; j++)
-      R_endeff[i][j] = frame.M(i,j);
-
-  //compute axis angle (temporary...switch to GetRotAngle())
-  return getAxisAngle(R_endeff, R_target);
 }
 
 bool SBPLArmModel::computeIK(const std::vector<double> pose, const std::vector<double> start, std::vector<double> &solution)
@@ -667,32 +638,6 @@ bool SBPLArmModel::computeFastIK(const KDL::Frame &frame, const std::vector<doub
   ROS_DEBUG_NAMED(debug_log_, "[ik] sol.: %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f",ik_jnt_pos_out_(0),ik_jnt_pos_out_(1),ik_jnt_pos_out_(2),ik_jnt_pos_out_(3),ik_jnt_pos_out_(4),ik_jnt_pos_out_(5),ik_jnt_pos_out_(6));
   
   return true;
-}
-
-double SBPLArmModel::getAxisAngle(const double R1[3][3], const double R2[3][3])
-{
-  short unsigned int x,y,k;
-  double sum, R3[3][3], R1_T[3][3];
-
-  //R1_T = transpose R1
-  for(x=0; x<3; x++)
-    for(y=0; y<3; y++)
-      R1_T[x][y] = R1[y][x];
-
-  //R3= R1_T * R2
-  for (x=0; x<3; x++)
-  {
-    for (y=0; y<3; y++)
-    {
-      sum = 0.0;
-      for (k=0; k<3; k++)
-        sum += (R1_T[x][k] * R2[k][y]);
-
-      R3[x][y] = sum;
-    }
-  }
-
-  return acos(((R3[0][0] + R3[1][1] + R3[2][2]) - 1.0) / 2.0);
 }
 
 bool SBPLArmModel::getJointPositions(const std::vector<double> angles, const BodyPose pose, std::vector<std::vector<double> > &links, KDL::Frame &f_out)
@@ -901,7 +846,7 @@ bool SBPLArmModel::checkJointLimits(std::vector<double> angles, bool verbose)
     norm_angles[2] = angles[2] + (2*-M_PI);
 
   if(int(norm_angles.size()) < num_joints_)
-    SBPL_DEBUG_NAMED(debug_log_,"  [%s] Joint array has %d joints. (should be %d joints)", name_.c_str(),int(norm_angles.size()),num_joints_);
+    ROS_DEBUG_NAMED(debug_log_,"  [%s] Joint array has %d joints. (should be %d joints)", name_.c_str(),int(norm_angles.size()),num_joints_);
 
   for(int i = 0; i < num_joints_; ++i)
   {
@@ -909,7 +854,7 @@ bool SBPLArmModel::checkJointLimits(std::vector<double> angles, bool verbose)
     {
       if(joints_[i].min > norm_angles[i] || norm_angles[i] > joints_[i].max)
       {
-        SBPL_DEBUG_NAMED(debug_log_, "  [%s] Joint %d is invalid with value %0.3f (limits are {%0.3f, %0.3f}.", name_.c_str(),i,norm_angles[i],joints_[i].min,joints_[i].max);
+        ROS_DEBUG_NAMED(debug_log_, "  [%s] Joint %d is invalid with value %0.3f (limits are {%0.3f, %0.3f}.", name_.c_str(),i,norm_angles[i],joints_[i].min,joints_[i].max);
         return false;
       }
     }
@@ -934,7 +879,7 @@ bool SBPLArmModel::checkJointLimits(std::vector<double> angles, int &debug_code)
     norm_angles[2] = angles[2] + (2*-M_PI);
 
   if(int(norm_angles.size()) < num_joints_)
-    SBPL_DEBUG_NAMED(debug_log_,"  [%s] Joint array has %d joints. (should be %d joints)", name_.c_str(), int(norm_angles.size()),num_joints_);
+    ROS_DEBUG_NAMED(debug_log_,"  [%s] Joint array has %d joints. (should be %d joints)", name_.c_str(), int(norm_angles.size()),num_joints_);
 
   for(int i = 0; i < num_joints_; ++i)
   {
@@ -942,7 +887,7 @@ bool SBPLArmModel::checkJointLimits(std::vector<double> angles, int &debug_code)
     {
       if(joints_[i].min > norm_angles[i] || norm_angles[i] > joints_[i].max)
       {
-        SBPL_DEBUG_NAMED(debug_log_, "  [%s] Joint %d is invalid with value %0.3f (limits are {%0.3f, %0.3f}.",name_.c_str(),i,norm_angles[i],joints_[i].min,joints_[i].max);
+        ROS_DEBUG_NAMED(debug_log_, "  [%s] Joint %d is invalid with value %0.3f (limits are {%0.3f, %0.3f}.",name_.c_str(),i,norm_angles[i],joints_[i].min,joints_[i].max);
         debug_code = debug_code_types_[i];
         return false;
       }
@@ -1007,90 +952,6 @@ void SBPLArmModel::getArmChainRootLinkName(std::string &name)
 {
   name = chain_root_name_;
 }
-
-bool SBPLArmModel::computeTranslationalIK(const std::vector<double> pose, double upperarm_roll, std::vector<double> &solution)
-{
-  std::vector<std::vector<double> > sol;
-  KDL::Frame frame_des;
-
-  //fill the goal frame
-  frame_des.p.x(pose[0]);
-  frame_des.p.y(pose[1]);
-  frame_des.p.z(pose[2]);
-  
-  //RPY
-  if(pose.size() == 6)
-    frame_des.M = KDL::Rotation::RPY(pose[3],pose[4],pose[5]);
-  //Quaternion
-  else
-    frame_des.M = KDL::Rotation::Quaternion(pose[3],pose[4],pose[5],pose[6]);
-
-  //transform from reference_frame_ to root_link_
-  frame_des.p = transform_inverse_ * frame_des.p;
-
-  Eigen::Matrix4f g = pr2_arm_kinematics::KDLToEigenMatrix(frame_des);
-
-ROS_ERROR("We need the modified pr2 arm kinematics!");
-exit(0);
-  //pr2_arm_ik_.computeTranslationIKShoulderRoll(g, upperarm_roll, sol);
-
-/*
-  printf("[computeTranslationalIK] Solution for xyz: %0.3f %0.3f %0.3f  upperarm_roll: %0.3f has length %d\n", g(0,3),g(1,3),g(2,3),upperarm_roll, int(sol.size()));
-  for(size_t i = 0; i < sol.size(); ++i)
-    printf("[%d] %0.3f %0.3f %0.3f %0.3f\n", int(i), sol[i][0],sol[i][1],sol[i][2],sol[i][3]);
-*/
-
-  if(sol.size() == 0)
-    return false;
-
-  return true;
-}
-
-/*
-int SBPLArmModel::getJointLimitDebugCode(const int &joint)
-{
-  if(arm_id_ == 1)
-  {
-    switch(joint)
-    {
-      case 0:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_SHOULDER_PAN_ANGLE;
-      case 1:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_SHOULDER_PITCH_ANGLE;
-      case 2:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_UPPER_ARM_ROLL_ANGLE;
-      case 3:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_ELBOW_FLEX_ANGLE;
-      case 4:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_FOREARM_ROLL_ANGLE;
-      case 5:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_WRIST_PITCH_ANGLE;
-      case 6:
-        return sbpl_arm_planner::DebugCode::INVALID_LEFT_WRIST_ROLL_ANGLE;
-    }
-  }
-  else
-  {
-    switch(joint)
-    {
-      case 0:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_SHOULDER_PAN_ANGLE;
-      case 1:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_SHOULDER_PITCH_ANGLE;
-      case 2:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_UPPER_ARM_ROLL_ANGLE;
-      case 3:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_ELBOW_FLEX_ANGLE;
-      case 4:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_FOREARM_ROLL_ANGLE;
-      case 5:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_WRIST_PITCH_ANGLE;
-      case 6:
-        return sbpl_arm_planner::DebugCode::INVALID_RIGHT_WRIST_ROLL_ANGLE;
-    }
-  }
-}
-*/
 
 int SBPLArmModel::getSegmentIndex(std::string &name)
 {

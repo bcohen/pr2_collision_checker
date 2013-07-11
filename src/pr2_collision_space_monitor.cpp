@@ -29,6 +29,7 @@
 /** \author Benjamin Cohen */
 
 #include <pr2_collision_checker/pr2_collision_space_monitor.h>
+
 namespace pr2_collision_checker
 {
 

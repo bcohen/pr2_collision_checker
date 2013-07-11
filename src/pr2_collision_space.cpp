@@ -35,9 +35,16 @@
 namespace pr2_collision_checker
 {
 
+/*
 double distance(const KDL::Vector& a, const KDL::Vector& b)
 {
 	return sqrt((a.x()-b.x())*(a.x()-b.x()) + (a.y()-b.y())*(a.y()-b.y()) + (a.z()-b.z())*(a.z()-b.z()));
+}
+*/
+
+double distance(const int a[], const int b[])
+{
+  return sqrt(((a[0]-b[0]))*(a[0]-b[0]) + ((a[1]-b[1]))*(a[1]-b[1]) + ((a[2]-b[2]))*(a[2]-b[2]));
 }
 
 PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, sbpl_arm_planner::SBPLArmModel* left_arm, sbpl_arm_planner::OccupancyGrid* grid) : grid_(grid)
@@ -45,82 +52,100 @@ PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, 
   arm_.resize(2);
   arm_[0] = right_arm;
   arm_[1] = left_arm;
-  fOut_ = stdout;
-  cube_filling_sphere_radius_ = 0.04;
+  object_filling_sphere_radius_ = 0.04;
 
   cspace_log_ = "cspace";
   attached_object_frame_suffix_ = "_wrist_roll_link";
 
-  //changed inc_ to a vector 8/28/2010
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
   inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
 }
 
-bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist)
+bool PR2CollisionSpace::init()
+{
+  arm_min_limits_.resize(2);
+  arm_max_limits_.resize(2);
+  for(int i = 0; i < arm_[0]->num_joints_; ++i)
+  {
+    arm_min_limits_[0].push_back(arm_[0]->getMinJointLimit(i));
+    arm_max_limits_[0].push_back(arm_[0]->getMaxJointLimit(i));
+  }
+  for(int i = 0; i < arm_[1]->num_joints_; ++i)
+  {
+    arm_min_limits_[1].push_back(arm_[1]->getMinJointLimit(i));
+    arm_max_limits_[1].push_back(arm_[1]->getMaxJointLimit(i));
+  }
+
+  if(!getSphereGroups())
+    return false;
+
+  return true;
+}
+
+bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist)
 {
   int code;
   return checkCollisionArms(langles,rangles,pose,verbose,dist,code);
 }
 
-bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
-  unsigned char dist_temp = 100;
-  //dist = 100; NOTE: We are assuming dist comes in with some value that matters
+  double dist_temp = 100.0;
   
   //check the right arm against the environment
   if(!checkCollision(rangles, pose, 0, verbose, dist_temp))
   {
     if(verbose)
-      ROS_DEBUG_NAMED(cspace_log_, "  Right arm is in collision with the environment. (dist: %d)", int(dist_temp));
+      ROS_INFO("  Right arm is in collision with the environment. (dist: %d)", int(dist_temp));
     dist = dist_temp;
-    //code_ = "Right arm + Environment";
     debug_code = sbpl_arm_planner::RIGHT_ARM_IN_COLLISION;
     return false;
   }
   dist = min(dist_temp,dist);
-  ROS_DEBUG("[Right] dist: %d dist_temp: %d\n",int(dist), int(dist_temp));
+  if(verbose)
+    ROS_INFO("[Right] dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
 
   //check the left arm against the environment
   if(!checkCollision(langles, pose, 1, verbose, dist_temp))
   {
     if(verbose)
-      ROS_DEBUG_NAMED(cspace_log_,"  Left arm is in collision with the environment. (dist: %d)", int(dist_temp));
+      ROS_INFO("  Left arm is in collision with the environment. (dist: %0.3fm)", dist_temp);
     dist = dist_temp;
-    //code_ = "Left arm + Environment";
     debug_code = sbpl_arm_planner::LEFT_ARM_IN_COLLISION;
     return false;
   }
   dist = min(dist_temp,dist);
-  ROS_DEBUG("[Left] dist: %d dist_temp: %d\n",int(dist), int(dist_temp));
+  if(verbose)
+    ROS_INFO("[Left]  dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
  
   //check the arms against each other
   if(!checkCollisionBetweenArms(langles,rangles, pose, verbose, dist_temp))
   {
     if(verbose)
-      ROS_DEBUG_NAMED(cspace_log_,"  Arms are in collision with each other. (dist %d)", int(dist_temp));
+      ROS_INFO("  Arms are in collision with each other. (dist %d)", int(dist_temp));
     dist = dist_temp;
-    //code_ = "Left arm + Right arm";
     debug_code = sbpl_arm_planner::COLLISION_BETWEEN_ARMS;
     return false;
   }
   dist = min(dist_temp,dist);
-  ROS_DEBUG("[Arms] dist: %d dist_temp: %d\n",int(dist), int(dist_temp));
+
+  if(verbose)
+    ROS_INFO("[Both]  dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
 
   return true;
 }
 
-bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, bool verbose, unsigned char &dist)
+bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, bool verbose, double &dist)
 {
-  unsigned char dist_temp=100;
+  double dist_temp = 100.0;
   std::vector<std::vector<int> > jnts;
-  //dist = 100; NOTE: We are assuming dist comes in with some value that matters
 
   //get position of joints in the occupancy grid
   if(!getJointPosesInGrid(angles, pose, i_arm, jnts))
   {
     if(verbose)
-      ROS_DEBUG_NAMED(cspace_log_,"  Unable to get poses of the joints to check for collision. [arm: %d]",int(i_arm));
+      ROS_INFO("  Unable to get poses of the joints to check for collision. [arm: %d]",int(i_arm));
     return false;
   }
 
@@ -130,7 +155,7 @@ bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPo
     if(!grid_->isInBounds(jnts[i][0],jnts[i][1],jnts[i][2]))
     {
       if(verbose)
-        ROS_DEBUG_NAMED(cspace_log_,"  End of link %d is out of bounds (%d %d %d). [arm: %d]", int(i), jnts[i][0],jnts[i][1],jnts[i][2],int(i_arm));
+        ROS_INFO("  End of link %d is out of bounds (%d %d %d). [arm: %d]", int(i), jnts[i][0],jnts[i][1],jnts[i][2],int(i_arm));
       return false;
     }
   }
@@ -138,13 +163,13 @@ bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPo
   //test each line segment for collision
   for(int i = 0; i < int(jnts.size()-1); i++)
   {
-    dist_temp = isValidLineSegment(jnts[i], jnts[i+1], arm_[i_arm]->getLinkRadiusCells(i));
+    dist_temp = isValidLineSegment(jnts[i], jnts[i+1], arm_[i_arm]->getLinkRadius(i));
     
     //if the line's distance to the nearest obstacle is less than the radius
-    if(dist_temp <= arm_[i_arm]->getLinkRadiusCells(i))
+    if(dist_temp <= arm_[i_arm]->getLinkRadius(i))
     { 
       if(verbose)
-        ROS_DEBUG_NAMED(cspace_log_,"  Link %d: {%d %d %d} -> {%d %d %d} with radius %0.2f is in collision. [arm: %d]",i,jnts[i][0],jnts[i][1],jnts[i][2],jnts[i+1][0],jnts[i+1][1],jnts[i+1][2], arm_[i_arm]->getLinkRadius(i), int(i_arm));
+        ROS_INFO("  Link %d: {%d %d %d} -> {%d %d %d} with radius %0.2f is in collision. [arm: %d]",i,jnts[i][0],jnts[i][1],jnts[i][2],jnts[i+1][0],jnts[i+1][1],jnts[i+1][2], arm_[i_arm]->getLinkRadius(i), int(i_arm));
       dist = dist_temp;
       return false;
     }
@@ -159,33 +184,40 @@ bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPo
   return true;
 }
 
-bool PR2CollisionSpace::checkCollision(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkCollision(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
+  ROS_INFO("Checking arms.");
   if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code))
   {
-    ROS_DEBUG("[cspace] Arms are in collision.");
+    if(verbose)
+      ROS_INFO("[cspace] Arms are in collision.");
     return false;
   }
+  ROS_INFO("Checking body. {dist before check: %0.3fm}", dist);
   if(!isBodyValid(pose.x, pose.y, pose.theta, pose.z, dist))
   {
-    ROS_DEBUG("[cspace] Body is in collision.");
+    if(verbose)
+      ROS_INFO("[cspace] Body is in collision.");
     return false;
   }
+  ROS_INFO("Checking arms -> body. {dist before check: %0.3fm}", dist);
   if(!checkCollisionArmsToBody(langles, rangles, pose, dist))
   {
-    ROS_DEBUG("[cspace] Arms are in collision with body.");
+    if(verbose)
+      ROS_INFO("[cspace] Arms are in collision with body.");
     return false;
   }
+  ROS_INFO("{dist after check: %0.3fm}", dist);
   return true;
 }
 
-bool PR2CollisionSpace::checkLinkForCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, int link_num, bool verbose, unsigned char &dist)
+bool PR2CollisionSpace::checkLinkForCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, int link_num, bool verbose, double &dist)
 {
   std::vector<std::vector<int> > jnts;
 
   if(link_num >= arm_[i_arm]->num_links_)
   {
-    ROS_WARN("[checkLinkInCollision] %d is not a valid link index. There are %d links.", link_num, arm_[i_arm]->num_links_);
+    ROS_WARN("[cspace] %d is not a valid link index. There are %d links.", link_num, arm_[i_arm]->num_links_);
     return false;
   }
   
@@ -197,58 +229,30 @@ bool PR2CollisionSpace::checkLinkForCollision(const std::vector<double> &angles,
   if(!grid_->isInBounds(jnts[link_num][0],jnts[link_num][1],jnts[link_num][2]))
   {
     if(verbose)
-      ROS_DEBUG_NAMED(cspace_log_,"End of link %d is out of bounds. (%d %d %d)", link_num, jnts[link_num][0],jnts[link_num][1],jnts[link_num][2]);
+      ROS_INFO("[cspace] End of link %d is out of bounds. (%d %d %d)", link_num, jnts[link_num][0],jnts[link_num][1],jnts[link_num][2]);
     return false;
   }
 
   //is link in collision?
-  dist = isValidLineSegment(jnts[link_num], jnts[link_num+1], arm_[i_arm]->getLinkRadiusCells(link_num));
+  dist = isValidLineSegment(jnts[link_num], jnts[link_num+1], arm_[i_arm]->getLinkRadius(link_num));
 
   //if the line's distance to the nearest obstacle is less than the radius
-  if(dist <= arm_[i_arm]->getLinkRadiusCells(link_num))
+  if(dist <= arm_[i_arm]->getLinkRadius(link_num))
   {
     if(verbose)
-      ROS_DEBUG_NAMED(cspace_log_,"Link %d: {%d %d %d} -> {%d %d %d} with radius %0.2f is in collision.",link_num,jnts[link_num][0],jnts[link_num][1],jnts[link_num][2],jnts[link_num+1][0],jnts[link_num+1][1],jnts[link_num+1][2],arm_[i_arm]->getLinkRadius(link_num));
+      ROS_INFO("[cspace] Link %d: {%d %d %d} -> {%d %d %d} with radius %0.2f is in collision.",link_num,jnts[link_num][0],jnts[link_num][1],jnts[link_num][2],jnts[link_num+1][0],jnts[link_num+1][1],jnts[link_num+1][2],arm_[i_arm]->getLinkRadius(link_num));
     return false;
   }
 
   return true;
 }
 
-bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, bool verbose, unsigned char &dist)
+bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, bool verbose, double &dist)
 {
   int inc_cc = 10;
-  unsigned char dist_temp = 0;
-  std::vector<double> start_norm(start);
-  std::vector<double> end_norm(end);
+  double dist_temp = 0;
   std::vector<std::vector<double> > path;
-  //dist = 100; NOTE: We are assuming dist comes in with some value that matters
-  
-  for(size_t i=0; i < start.size(); i++)
-  {
-    start_norm[i] = angles::normalize_angle(start[i]);
-    end_norm[i] = angles::normalize_angle(end[i]);
-  }
- 
-  //TODO: should read from text file
-  if(i_arm == 0)
-  {
-    if(start[2] > arm_[i_arm]->getMaxJointLimit(2))
-      start_norm[2] = start[2] + (2*-M_PI);
-
-    if(end[2] > arm_[i_arm]->getMaxJointLimit(2))
-      end_norm[2] = end[2] + (2*-M_PI);
-  }
-  else
-  {
-    if(start[2] < arm_[i_arm]->getMinJointLimit(2))
-      start_norm[2] = start[2] + (2*M_PI);
-
-    if(end[2] < arm_[i_arm]->getMinJointLimit(2))
-      end_norm[2] = end[2] + (2*M_PI);
-  }
-
-  getInterpolatedPath(start_norm, end_norm, inc_, path);
+  sbpl::Interpolator::interpolatePath(start, end, arm_min_limits_[i_arm], arm_max_limits_[i_arm], inc_, path);
 
   // optimization: try to find collisions that might come later in the path earlier
   if(int(path.size()) > inc_cc)
@@ -282,23 +286,21 @@ bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start, 
         dist = dist_temp;
     }
   }
-
   return true;
 }
 
-bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, unsigned char &dist)
+bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, double &dist)
 {
   int debug_code;
   return checkPathForCollision(start0,end0,start1,end1,pose,verbose,dist,debug_code);
 }
 
-bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start0, const std::vector<double> &end0, const std::vector<double> &start1, const std::vector<double> &end1, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
   int inc_cc = 10;
-  unsigned char dist_temp = 0;
+  double dist_temp = 0;
   std::vector<double> start0_norm(start0), start1_norm(start1), end0_norm(end0), end1_norm(end1);
   std::vector<std::vector<double> > path0, path1;
-  //dist = 100;  NOTE: We are assuming dist comes in with some value that matters
 
   for(size_t i=0; i < start0.size(); i++)
   {
@@ -320,7 +322,7 @@ bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start0,
   if(end1[2] < arm_[1]->getMinJointLimit(2))
     end1_norm[2] = end1[2] + (2*M_PI);
 
-  getInterpolatedPath(start0_norm, end0_norm, inc_, path0);
+  sbpl::Interpolator::interpolatePath(start0, end0, arm_min_limits_[0], arm_max_limits_[0], inc_, path0);
   getFixedLengthInterpolatedPath(start1_norm, end1_norm, path0.size(), path1);
 
   // optimization: try to find collisions that might come later in the path earlier
@@ -358,41 +360,12 @@ bool PR2CollisionSpace::checkPathForCollision(const std::vector<double> &start0,
   return true;
 }
 
-bool PR2CollisionSpace::checkLinkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, int link_num, bool verbose, unsigned char &dist)
+bool PR2CollisionSpace::checkLinkPathForCollision(const std::vector<double> &start, const std::vector<double> &end, BodyPose &pose, char i_arm, int link_num, bool verbose, double &dist)
 {
   int inc_cc = 10;
-  unsigned char dist_temp = 0;
-  std::vector<double> start_norm(start);
-  std::vector<double> end_norm(end);
+  double dist_temp = 0;
   std::vector<std::vector<double> > path;
-  //dist = 100;  NOTE: We are assuming dist comes in with some value that matters
-
-  for(size_t i=0; i < start.size(); i++)
-  {
-    start_norm[i] = angles::normalize_angle(start[i]);
-    end_norm[i] = angles::normalize_angle(end[i]);
-  }
- 
-  //problem with upper_arm_roll
-  //TODO: Do this more gracefully?
-  if(i_arm == 0)
-  {
-    if(start[2] > arm_[i_arm]->getMaxJointLimit(2))
-      start_norm[2] = start[2] + (2*-M_PI);
-
-    if(end[2] > arm_[i_arm]->getMaxJointLimit(2))
-      end_norm[2] = end[2] + (2*-M_PI);
-  }
-  else
-  {
-    if(start[2] < arm_[i_arm]->getMinJointLimit(2))
-      start_norm[2] = start[2] + (2*M_PI);
-
-    if(end[2] < arm_[i_arm]->getMinJointLimit(2))
-      end_norm[2] = end[2] + (2*M_PI);
-  }
-
-  getInterpolatedPath(start_norm, end_norm, inc_, path);
+  sbpl::Interpolator::interpolatePath(start, end, arm_min_limits_[i_arm], arm_max_limits_[i_arm], inc_, path);
 
   //try to find collisions that might come later in the path earlier
   if(int(path.size()) > inc_cc)
@@ -458,11 +431,11 @@ bool PR2CollisionSpace::getJointPosesInGrid(const std::vector<double> angles, Bo
   return true;
 }
 
-unsigned char PR2CollisionSpace::isValidLineSegment(const std::vector<int> a, const std::vector<int> b, const short unsigned int radius)
+double PR2CollisionSpace::isValidLineSegment(const std::vector<int> a, const std::vector<int> b, double radius)
 {
   leatherman::bresenham3d_param_t params;
   int nXYZ[3], retvalue = 1;
-  unsigned char cell_val, min_dist = 255;
+  double cell_val, min_dist = 100.0;
   CELL3V tempcell;
   vector<CELL3V>* pTestedCells=NULL;
 
@@ -474,7 +447,7 @@ unsigned char PR2CollisionSpace::isValidLineSegment(const std::vector<int> a, co
     if(!grid_->isInBounds(nXYZ[0],nXYZ[1],nXYZ[2]))
       return 0;
 
-    cell_val = grid_->getCell(nXYZ[0],nXYZ[1],nXYZ[2]);
+    cell_val = grid_->getDistance(nXYZ[0],nXYZ[1],nXYZ[2]);
     if(cell_val <= radius)
     {
       if(pTestedCells == NULL)
@@ -506,102 +479,6 @@ unsigned char PR2CollisionSpace::isValidLineSegment(const std::vector<int> a, co
     return 0;
 }
 
-double PR2CollisionSpace::distanceBetween3DLineSegments(std::vector<int> l1a, std::vector<int> l1b,std::vector<int> l2a, std::vector<int> l2b)
-{
-  // Copyright 2001, softSurfer (www.softsurfer.com)
-  // This code may be freely used and modified for any purpose
-  // providing that this copyright notice is included with it.
-  // SoftSurfer makes no warranty for this code, and cannot be held
-  // liable for any real or imagined damage resulting from its use.
-  // Users of this code must verify correctness for their application.
-
-  double u[3];
-  double v[3];
-  double w[3];
-  double dP[3];
-
-  u[0] = l1b[0] - l1a[0];
-  u[1] = l1b[1] - l1a[1];
-  u[2] = l1b[2] - l1a[2];
-
-  v[0] = l2b[0] - l2a[0];
-  v[1] = l2b[1] - l2a[1];
-  v[2] = l2b[2] - l2a[2];
-
-  w[0] = l1a[0] - l2a[0];
-  w[1] = l1a[1] - l2a[1];
-  w[2] = l1a[2] - l2a[2];
-
-  double a = u[0] * u[0] + u[1] * u[1] + u[2] * u[2]; // always >= 0
-  double b = u[0] * v[0] + u[1] * v[1] + u[2] * v[2]; // dot(u,v);
-  double c = v[0] * v[0] + v[1] * v[1] + v[2] * v[2]; // dot(v,v);        // always >= 0
-  double d = u[0] * w[0] + u[1] * w[1] + u[2] * w[2]; // dot(u,w);
-  double e = v[0] * w[0] + v[1] * w[1] + v[2] * w[2]; // dot(v,w);
-  double D = a*c - b*b;       // always >= 0
-  double sc, sN, sD = D;      // sc = sN / sD, default sD = D >= 0
-  double tc, tN, tD = D;      // tc = tN / tD, default tD = D >= 0
-
-  // compute the line parameters of the two closest points
-  if (D < SMALL_NUM) { // the lines are almost parallel
-    sN = 0.0;        // force using point P0 on segment S1
-    sD = 1.0;        // to prevent possible division by 0.0 later
-    tN = e;
-    tD = c;
-  }
-  else {                // get the closest points on the infinite lines
-    sN = (b*e - c*d);
-    tN = (a*e - b*d);
-    if (sN < 0.0) {       // sc < 0 => the s=0 edge is visible
-      sN = 0.0;
-      tN = e;
-      tD = c;
-    }
-    else if (sN > sD) {  // sc > 1 => the s=1 edge is visible
-      sN = sD;
-      tN = e + b;
-      tD = c;
-    }
-  }
-
-  if (tN < 0.0) {           // tc < 0 => the t=0 edge is visible
-    tN = 0.0;
-    // recompute sc for this edge
-    if (-d < 0.0)
-      sN = 0.0;
-    else if (-d > a)
-      sN = sD;
-    else {
-      sN = -d;
-      sD = a;
-    }
-  }
-  else if (tN > tD) {      // tc > 1 => the t=1 edge is visible
-    tN = tD;
-    // recompute sc for this edge
-    if ((-d + b) < 0.0)
-      sN = 0;
-    else if ((-d + b) > a)
-      sN = sD;
-    else {
-      sN = (-d + b);
-      sD = a;
-    }
-  }
-
-  // finally do the division to get sc and tc
-  sc = (fabs(sN) < SMALL_NUM ? 0.0 : sN / sD);
-  tc = (fabs(tN) < SMALL_NUM ? 0.0 : tN / tD);
-
-  // get the difference of the two closest points
-  // dP = w + (sc * u) - (tc * v);  // = S1(sc) - S2(tc)
-
-  dP[0] = w[0] + (sc * u[0]) - (tc * v[0]);
-  dP[1] = w[1] + (sc * u[1]) - (tc * v[1]);
-  dP[2] = w[2] + (sc * u[2]) - (tc * v[2]);
-
-  return  sqrt(dP[0]*dP[0] + dP[1]*dP[1] + dP[2]*dP[2]);   // return the closest distance
-}
-
 void PR2CollisionSpace::addArmCuboidsToGrid(char i_arm)
 {
   std::vector<std::vector<double> > cuboids = arm_[i_arm]->getCollisionCuboids();
@@ -613,56 +490,13 @@ void PR2CollisionSpace::addArmCuboidsToGrid(char i_arm)
     if(cuboids[i].size() == 6)
       grid_->addCube(cuboids[i][0],cuboids[i][1],cuboids[i][2],cuboids[i][3],cuboids[i][4],cuboids[i][5]);
     else
-      ROS_DEBUG("[addArmCuboidsToGrid] Self-collision cuboid #%d has an incomplete description.\n", i);
+      ROS_DEBUG("Self-collision cuboid #%d has an incomplete description.\n", i);
   }
 }
-/*
-bool PR2CollisionSpace::getCollisionCylinders(const std::vector<double> &angles, BodyPose &pose, char i_arm, std::vector<std::vector<double> > &cylinders)
+
+bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist)
 {
-  int num_arm_spheres = 0;
-  std::vector<double> xyzr(4,0);
-  std::vector<std::vector<int> > points, jnts;
-
-  //get position of joints in the occupancy grid
-  if(!getJointPosesInGrid(angles, pose, i_arm, jnts))
-    return false;
-
-  for(int i = 0; i < int(jnts.size()-1); ++i)
-  {
-    points.clear();
-    getLineSegment(jnts[i], jnts[i+1], points);
-
-    //write points to cylinder {x,y,z,radius} all in centimeters
-    for(int j = 0; j < int(points.size()); ++j)
-    {
-      grid_->gridToWorld(points[j][0],points[j][1],points[j][2],xyzr[0],xyzr[1],xyzr[2]); 
-      xyzr[3]=double(arm_[i_arm]->getLinkRadiusCells(i))*arm_[i_arm]->resolution_;
-      cylinders.push_back(xyzr);
-    }
-  }
-
-  num_arm_spheres = cylinders.size();
-  return true;
-}
-*/
-
-void PR2CollisionSpace::getLineSegment(const std::vector<int> a,const std::vector<int> b,std::vector<std::vector<int> > &points){
-  leatherman::bresenham3d_param_t params;
-  std::vector<int> nXYZ(3,0);
-
-  //iterate through the points on the segment
-  leatherman::get_bresenham3d_parameters(a[0], a[1], a[2], b[0], b[1], b[2], &params);
-  do {
-    leatherman::get_current_point3d(&params, &(nXYZ[0]), &(nXYZ[1]), &(nXYZ[2]));
-
-    points.push_back(nXYZ);
-
-  } while (leatherman::get_next_point3d(&params));
-}
-
-bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist)
-{
-  double d = 100, d_min = 100;
+  double d = 100.0, d_min = 100.0;
   std::vector<std::vector<int> > ljnts, rjnts;
 
   //get position of joints in the occupancy grid
@@ -678,24 +512,25 @@ bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &lan
   {
     for(size_t j = 0; j < ljnts.size()-1; ++j)
     {
-      d = distanceBetween3DLineSegments(rjnts[i], rjnts[i+1], ljnts[j], ljnts[j+1]);
+      d = leatherman::distanceBetween3DLineSegments(rjnts[i], rjnts[i+1], ljnts[j], ljnts[j+1]);
+      d = d * grid_->getResolution();
       if(verbose)
       {
-        ROS_DEBUG_NAMED(cspace_log_,"Right %d: %d %d %d -> %d %d %d  dist: %0.3f", int(i), rjnts[i][0], rjnts[i][1], rjnts[i][2], rjnts[i+1][0],rjnts[i+1][1],rjnts[i+1][2],d);
-        ROS_DEBUG_NAMED(cspace_log_,"Left  %d: %d %d %d -> %d %d %d  dist: %0.3f", int(j), ljnts[j][0], ljnts[j][1], ljnts[j][2], ljnts[j+1][0],ljnts[j+1][1],ljnts[j+1][2],d);
+        ROS_DEBUG_NAMED(cspace_log_,"Right %d: %d %d %d -> %d %d %d  dist: %0.3f", int(i), rjnts[i][0], rjnts[i][1], rjnts[i][2], rjnts[i+1][0],rjnts[i+1][1],rjnts[i+1][2], d);
+        ROS_DEBUG_NAMED(cspace_log_,"Left  %d: %d %d %d -> %d %d %d  dist: %0.3f", int(j), ljnts[j][0], ljnts[j][1], ljnts[j][2], ljnts[j+1][0],ljnts[j+1][1],ljnts[j+1][2], d);
       }
-      if(d <= max(arm_[0]->getLinkRadiusCells(i), arm_[1]->getLinkRadiusCells(j)))
+      if(d <= max(arm_[0]->getLinkRadius(i), arm_[1]->getLinkRadius(j)))
       {
         if(verbose)
-          ROS_DEBUG_NAMED(cspace_log_,"  Right arm link %d is in collision with left arm link %d. (dist: %0.3fm)", int(i), int(j), d*arm_[0]->resolution_);
+          ROS_DEBUG_NAMED(cspace_log_,"  Right arm link %d is in collision with left arm link %d. (dist: %0.3fm)", int(i), int(j), d);
         dist = d;
         return false;
       }
-      /*
       else
+      {
         if(verbose)
-          ROS_INFO("Distance between right link %d and left link %d is %0.3fm", int(i), int(j), d*arm_[0]->resolution_);
-      */
+          ROS_INFO("Distance between right link %d and left link %d is %0.3fm", int(i), int(j), d);
+      }
 
       if(d < d_min)
         d_min = d; //min(d_min, d);
@@ -705,6 +540,7 @@ bool PR2CollisionSpace::checkCollisionBetweenArms(const std::vector<double> &lan
   return true;
 }
 
+/*
 void PR2CollisionSpace::getInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, double inc, std::vector<std::vector<double> > &path)
 {
   bool changed = true; 
@@ -772,6 +608,7 @@ void PR2CollisionSpace::getInterpolatedPath(const std::vector<double> &start, co
       path.push_back(next);
   }
 }
+*/
 
 void PR2CollisionSpace::getFixedLengthInterpolatedPath(const std::vector<double> &start, const std::vector<double> &end, int path_length, std::vector<std::vector<double> > &path)
 {
@@ -836,42 +673,25 @@ void PR2CollisionSpace::processCollisionObjectMsg(const arm_navigation_msgs::Col
 void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionObject &object)
 {
   geometry_msgs::Pose pose;
+  if(!object.shapes.empty())
+    object_voxel_map_[object.id].clear();
 
   for(size_t i = 0; i < object.shapes.size(); ++i)
   {
     if(object.shapes[i].type == arm_navigation_msgs::Shape::BOX)
     {
-      transformPose(object.header.frame_id, grid_->getReferenceFrame(), object.poses[i], pose);
-      object_voxel_map_[object.id].clear();
-      //grid_->getVoxelsInBox(pose, object.shapes[i].dimensions, object_voxel_map_[object.id]);
-
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] TransformPose from %s to %s.", object.id.c_str(), object.header.frame_id.c_str(), grid_->getReferenceFrame().c_str());
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] %s: xyz: %0.3f %0.3f %0.3f   quat: %0.3f %0.3f %0.3f %0.3f", object.id.c_str(), object.header.frame_id.c_str(), object.poses[i].position.x,  object.poses[i].position.y, object.poses[i].position.z, object.poses[i].orientation.x, object.poses[i].orientation.y, object.poses[i].orientation.z,object.poses[i].orientation.w);
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] %s: xyz: %0.3f %0.3f %0.3f   quat: %0.3f %0.3f %0.3f %0.3f", object.id.c_str(), grid_->getReferenceFrame().c_str(), pose.position.x, pose.position.y, pose.position.z, pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] occupies %d voxels.",object.id.c_str(), int(object_voxel_map_[object.id].size()));
+      std::vector<std::vector<double> > voxels;
+      sbpl::Voxelizer::voxelizeBox(object.shapes[i].dimensions[0], object.shapes[i].dimensions[1], object.shapes[i].dimensions[2], object.poses[i], grid_->getResolution(), voxels, false); 
+      for(size_t j = 0; j < voxels.size(); ++j)
+        object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
     }
     else if(object.shapes[i].type == arm_navigation_msgs::Shape::MESH)
     {
-      transformPose(object.header.frame_id, grid_->getReferenceFrame(), object.poses[i], pose);
-      object_voxel_map_[object.id].clear();
-      //sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, 0.02, object_voxel_map_[object.id], true);
-
-      // transform voxels in mesh frame into the world frame
-      btVector3 v(pose.position.x, pose.position.y, pose.position.z);
-      btMatrix3x3 m(btQuaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w));
-      //btTransform trans = Transform(Quaternion(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w), Vector3(pose.position.x, pose.position.y, pose.position.z));
-      for(size_t j = 0; j <  object_voxel_map_[object.id].size(); ++j)
-      {
-        object_voxel_map_[object.id][j] = m *  object_voxel_map_[object.id][j];
-        object_voxel_map_[object.id][j] += v;
-      }
-
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] TransformPose from %s to %s.", object.id.c_str(), object.header.frame_id.c_str(), grid_->getReferenceFrame().c_str());
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] %s: xyz: %0.3f %0.3f %0.3f   quat: %0.3f %0.3f %0.3f %0.3f", object.id.c_str(), object.header.frame_id.c_str(), object.poses[i].position.x,  object.poses[i].position.y, object.poses[i].position.z, object.poses[i].orientation.x, object.poses[i].orientation.y, object.poses[i].orientation.z,object.poses[i].orientation.w);
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] %s: xyz: %0.3f %0.3f %0.3f   quat: %0.3f %0.3f %0.3f %0.3f", object.id.c_str(), grid_->getReferenceFrame().c_str(), pose.position.x, pose.position.y, pose.position.z, pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-      ROS_DEBUG_NAMED(cspace_log_,"[%s] occupies %d voxels.",object.id.c_str(), int(object_voxel_map_[object.id].size()));
+      std::vector<std::vector<double> > voxels;
+      sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, object.poses[i], 0.02, voxels, false);
+      for(size_t j = 0; j < voxels.size(); ++j)
+        object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
     }
-
     else
       ROS_WARN("[cspace] Collision objects of type %d are not yet supported.", object.shapes[i].type);
   }
@@ -886,7 +706,7 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
   if(new_object)
     known_objects_.push_back(object.id);
 
-  grid_->addPointsToField(btVectorToEigenVector(object_voxel_map_[object.id]));
+  grid_->addPointsToField(object_voxel_map_[object.id]);
   ROS_INFO("[cspace] Just added %s to the distance field, represented as %d voxels.", object.id.c_str(), int(object_voxel_map_[object.id].size()));
 }
 
@@ -925,9 +745,7 @@ void PR2CollisionSpace::removeCollisionObject(const arm_navigation_msgs::Collisi
   // reset the map, add all the known objects again
   grid_->updateFromCollisionMap(last_collision_map_);
   for(size_t i = 0; i < known_objects_.size(); ++i)
-  {
-    grid_->addPointsToField(btVectorToEigenVector(object_voxel_map_[known_objects_[i]]));
-  }
+    grid_->addPointsToField(object_voxel_map_[known_objects_[i]]);
 }
 
 void PR2CollisionSpace::removeAllCollisionObjects()
@@ -937,37 +755,14 @@ void PR2CollisionSpace::removeAllCollisionObjects()
 
 void PR2CollisionSpace::putCollisionObjectsInGrid()
 {
-  ROS_DEBUG("[putCollisionObjectsInGrid] Should we reset first?");
+  ROS_DEBUG("Should we reset first?");
 
   for(size_t i = 0; i < known_objects_.size(); ++i)
   {
-    grid_->addPointsToField(btVectorToEigenVector(object_voxel_map_[known_objects_[i]]));
-    ROS_DEBUG("[putCollisionObjectsInGrid] Added %s to grid with %d voxels.",known_objects_[i].c_str(), int(object_voxel_map_[known_objects_[i]].size()));
+    grid_->addPointsToField(object_voxel_map_[known_objects_[i]]);
+    ROS_DEBUG("Added %s to grid with %d voxels.",known_objects_[i].c_str(), int(object_voxel_map_[known_objects_[i]].size()));
   }
 }
-
-void PR2CollisionSpace::transformPose(const std::string &current_frame, const std::string &desired_frame, const geometry_msgs::Pose &pose_in, geometry_msgs::Pose &pose_out)
-{
-  geometry_msgs::PoseStamped stpose_in, stpose_out;
-  stpose_in.header.frame_id = current_frame;
-  stpose_in.header.stamp = ros::Time();
-  stpose_in.pose = pose_in;
-  tf_.transformPose(desired_frame, stpose_in, stpose_out);
-  pose_out = stpose_out.pose;
-}
-
-/*
-void PR2CollisionSpace::setAttachedRobotLinkToMultiDofTransform(KDL::Frame& transform)
-{
-	attached_robot_link_in_multi_dof_ = transform;
-	if (is_object_attached_) attached_object_in_multi_dof_ = attached_robot_link_in_multi_dof_ * attached_object_pose_;
-	//attached_object_in_multi_dof_ = attached_object_pose_ * attached_robot_link_in_multi_dof_;
-	  // TODO: possibly add these in to sbpl_arm_planner. They're in Ben's version
-//	sbpl_arm_planner::printKDLFrame(attached_object_pose_, "object_in_right_wrist");
-//	sbpl_arm_planner::printKDLFrame(attached_robot_link_in_multi_dof_, "right_wrist_in_multi-dof");
-//	sbpl_arm_planner::printKDLFrame(attached_object_in_multi_dof_, "object_in_multi-dof");
-}
-*/
 
 bool PR2CollisionSpace::getCollisionLinks()
 {
@@ -1346,9 +1141,9 @@ void PR2CollisionSpace::getPointsInGroup(KDL::Frame &frame, Group &group, std::v
   }
 }
 
-bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, unsigned char &dist)
+bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &dist)
 {
-  unsigned char dist_temp;
+  double dist_temp = 100.0;
 
   getMaptoRobotTransform(x,y,theta,base_g_.f);
 
@@ -1364,7 +1159,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, unsigned c
       ROS_DEBUG_NAMED(cspace_log_,"[cspace] [base] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), base_g_.spheres[i].voxel[0], base_g_.spheres[i].voxel[1], base_g_.spheres[i].voxel[2], dimx, dimy, dimz);
       return false;
     }
-    if((dist_temp = grid_->getCell(base_g_.spheres[i].voxel[0], base_g_.spheres[i].voxel[1], base_g_.spheres[i].voxel[2])) <= base_g_.spheres[i].radius_c)
+    if((dist_temp = grid_->getDistance(base_g_.spheres[i].voxel[0], base_g_.spheres[i].voxel[1], base_g_.spheres[i].voxel[2])) <= base_g_.spheres[i].radius)
     {
       dist = dist_temp;
       return false;
@@ -1387,7 +1182,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, unsigned c
       ROS_DEBUG_NAMED(cspace_log_,"[cspace] [base] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), torso_lower_g_.spheres[i].voxel[0], torso_lower_g_.spheres[i].voxel[1], torso_lower_g_.spheres[i].voxel[2], dimx, dimy, dimz);
       return false;
     }
-    if((dist_temp = grid_->getCell(torso_lower_g_.spheres[i].voxel[0], torso_lower_g_.spheres[i].voxel[1], torso_lower_g_.spheres[i].voxel[2])) <= torso_lower_g_.spheres[i].radius_c)
+    if((dist_temp = grid_->getDistance(torso_lower_g_.spheres[i].voxel[0], torso_lower_g_.spheres[i].voxel[1], torso_lower_g_.spheres[i].voxel[2])) <= torso_lower_g_.spheres[i].radius)
     {
       dist = dist_temp;
       return false;
@@ -1399,9 +1194,9 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, unsigned c
   return true;
 }
 
-bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double torso, unsigned char &dist)
+bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double torso, double &dist)
 {
-  unsigned char dist_temp;
+  double dist_temp = 100.0;
 
   ROS_DEBUG("[cspace] Checking Torso. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f torso_kdl_num: %d",x,y,theta,torso,torso_upper_g_.kdl_segment);
   if(!computeFullBodyKinematics(x,y,theta,torso, torso_upper_g_.kdl_segment, torso_upper_g_.f))
@@ -1422,7 +1217,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       ROS_DEBUG_NAMED(cspace_log_,"[torso] [base] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), torso_upper_g_.spheres[i].voxel[0], torso_upper_g_.spheres[i].voxel[1], torso_upper_g_.spheres[i].voxel[2], dimx, dimy, dimz);
       return false;
     }
-    if((dist_temp = grid_->getCell(torso_upper_g_.spheres[i].voxel[0], torso_upper_g_.spheres[i].voxel[1], torso_upper_g_.spheres[i].voxel[2])) <= torso_upper_g_.spheres[i].radius_c)
+    if((dist_temp = grid_->getDistance(torso_upper_g_.spheres[i].voxel[0], torso_upper_g_.spheres[i].voxel[1], torso_upper_g_.spheres[i].voxel[2])) <= torso_upper_g_.spheres[i].radius)
     {
       dist = dist_temp;
       return false;
@@ -1444,7 +1239,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       ROS_DEBUG_NAMED(cspace_log_,"[torso] [base] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), tilt_laser_g_.spheres[i].voxel[0], tilt_laser_g_.spheres[i].voxel[1], tilt_laser_g_.spheres[i].voxel[2], dimx, dimy, dimz);
       return false;
     }
-    if((dist_temp = grid_->getCell(tilt_laser_g_.spheres[i].voxel[0], tilt_laser_g_.spheres[i].voxel[1], tilt_laser_g_.spheres[i].voxel[2])) <= tilt_laser_g_.spheres[i].radius_c)
+    if((dist_temp = grid_->getDistance(tilt_laser_g_.spheres[i].voxel[0], tilt_laser_g_.spheres[i].voxel[1], tilt_laser_g_.spheres[i].voxel[2])) <= tilt_laser_g_.spheres[i].radius)
     {
       dist = dist_temp;
       return false;
@@ -1466,7 +1261,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       ROS_DEBUG_NAMED(cspace_log_,"[cspace] [torso] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), turrets_g_.spheres[i].voxel[0], turrets_g_.spheres[i].voxel[1], turrets_g_.spheres[i].voxel[2], dimx, dimy, dimz);
       return false;
     }
-    if((dist_temp = grid_->getCell(turrets_g_.spheres[i].voxel[0], turrets_g_.spheres[i].voxel[1], turrets_g_.spheres[i].voxel[2])) <= turrets_g_.spheres[i].radius_c)
+    if((dist_temp = grid_->getDistance(turrets_g_.spheres[i].voxel[0], turrets_g_.spheres[i].voxel[1], turrets_g_.spheres[i].voxel[2])) <= turrets_g_.spheres[i].radius)
     {
       dist = dist_temp;
       return false;
@@ -1479,9 +1274,9 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
   return true;
 }
 
-bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double torso, unsigned char &dist)
+bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double torso, double &dist)
 {
-  unsigned char dist_temp;
+  double dist_temp = 100.0;
 
   ROS_DEBUG("[cspace] Checking Head. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f head_kdl_num: %d",x,y,theta,torso,head_g_.kdl_segment);
   if(!computeFullBodyKinematics(x,y,theta,torso, head_g_.kdl_segment, head_g_.f))
@@ -1502,7 +1297,7 @@ bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double tor
       ROS_DEBUG_NAMED(cspace_log_,"[cspace] [head] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), head_g_.spheres[i].voxel[0], head_g_.spheres[i].voxel[1], head_g_.spheres[i].voxel[2], dimx, dimy, dimz);
       return false;
     }
-    if((dist_temp = grid_->getCell(head_g_.spheres[i].voxel[0], head_g_.spheres[i].voxel[1], head_g_.spheres[i].voxel[2])) <= head_g_.spheres[i].radius_c)
+    if((dist_temp = grid_->getDistance(head_g_.spheres[i].voxel[0], head_g_.spheres[i].voxel[1], head_g_.spheres[i].voxel[2])) <= head_g_.spheres[i].radius)
     {
       dist = dist_temp;
       return false;
@@ -1514,17 +1309,17 @@ bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double tor
   return true;
 }
 
-bool PR2CollisionSpace::isBodyValid(double x, double y, double theta, double torso, unsigned char &dist)
+bool PR2CollisionSpace::isBodyValid(double x, double y, double theta, double torso, double &dist)
 {
   return isBaseValid(x,y,theta,dist) &
          isTorsoValid(x,y,theta,torso,dist) &
          isHeadValid(x,y,theta,torso,dist);
 }
 
-bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, unsigned char &dist)
+bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
 {
   //NOTE: Assumes you computed the kinematics for all the joints already.
-  int d;
+  double d=200.0;
   /*
   printGroupVoxels(group, group.name);
   printGroupVoxels(rgripper_g_, "right gripper");
@@ -1538,60 +1333,68 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, unsigned char &d
     // vs right gripper
     for(size_t j = 0; j < rgripper_g_.spheres.size(); ++j)
     {
-      if((d = getDistanceBetweenPoints(rgripper_g_.spheres[j].voxel[0], rgripper_g_.spheres[j].voxel[1], rgripper_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2])) <= max(rgripper_g_.spheres[j].radius_c, group.spheres[i].radius_c))
+      //d = grid_->getResolution() *leatherman::distance(rgripper_g_.spheres[j].voxel[0], rgripper_g_.spheres[j].voxel[1], rgripper_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2]);
+      d = grid_->getResolution() * distance(rgripper_g_.spheres[j].voxel, group.spheres[i].voxel);
+      if(d <= max(rgripper_g_.spheres[j].radius, group.spheres[i].radius))
       {
         if(d < dist)
           dist = d;
-        ROS_INFO("COLLISION");
+        ROS_INFO(" [%s-right_gripper] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
         return false;
       }
-      dist = min(d, int(dist));
-      //ROS_INFO("[cspace] [%s-right_gripper] sphere: %d arm_sphere: %d dist: %d   arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, rgripper_g_.spheres[j].radius_c, group.spheres[i].radius_c);
+      dist = min(d, dist);
+      ROS_DEBUG("[cspace] [%s-right_gripper] sphere: %d arm_sphere: %d dist: %0.3fm   arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, rgripper_g_.spheres[j].radius_c, group.spheres[i].radius_c);
     }
     // vs left gripper
     for(size_t j = 0; j < lgripper_g_.spheres.size(); ++j)
     {
-      if((d = getDistanceBetweenPoints(lgripper_g_.spheres[j].voxel[0], lgripper_g_.spheres[j].voxel[1], lgripper_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2])) <= max(lgripper_g_.spheres[j].radius_c, group.spheres[i].radius_c))
+      //d = grid_->getResolution() *leatherman::distance(lgripper_g_.spheres[j].voxel[0], lgripper_g_.spheres[j].voxel[1], lgripper_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2]);
+      d = grid_->getResolution() * distance(lgripper_g_.spheres[j].voxel, group.spheres[i].voxel);
+      if(d <= max(lgripper_g_.spheres[j].radius, group.spheres[i].radius))
       {
         if(d < dist)
           dist = d;
-        ROS_INFO("COLLISION");
+        ROS_INFO(" [%s-left_gripper] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
         return false;
       }
-      dist = min(d, int(dist));
-      //ROS_INFO("[cspace] [%s-left_gripper] sphere: %d arm_sphere: %d dist: %d   arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, lgripper_g_.spheres[j].radius_c, group.spheres[i].radius_c);
+      dist = min(d, dist);
+      ROS_DEBUG("[cspace] [%s-left_gripper] sphere: %d arm_sphere: %d dist: %0.3fm   arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, lgripper_g_.spheres[j].radius_c, group.spheres[i].radius_c);
     }
     // vs right forearm
     for(size_t j = 0; j < rforearm_g_.spheres.size(); ++j)
     {
-      if((d = getDistanceBetweenPoints(rforearm_g_.spheres[j].voxel[0], rforearm_g_.spheres[j].voxel[1], rforearm_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2])) <= max(rforearm_g_.spheres[j].radius_c, group.spheres[i].radius_c))
+      //d = grid_->getResolution() *leatherman::distance(rforearm_g_.spheres[j].voxel[0], rforearm_g_.spheres[j].voxel[1], rforearm_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2]);
+      d = grid_->getResolution() * distance(rforearm_g_.spheres[j].voxel, group.spheres[i].voxel);
+      if(d <= max(rforearm_g_.spheres[j].radius, group.spheres[i].radius))
       {
         if(d < dist)
           dist = d;
-        ROS_INFO("COLLISION");
+        ROS_INFO(" [%s-right_forearm] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
         return false;
       }
-      dist = min(d, int(dist));
-      //ROS_INFO("[cspace] [%s-right_forearm] sphere: %d arm_sphere: %d dist: %d  arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, rforearm_g_.spheres[j].radius_c, group.spheres[i].radius_c);
+      dist = min(d, dist);
+      ROS_DEBUG("[cspace] [%s-right_forearm] sphere: %d arm_sphere: %d dist: %0.3fm  arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, rforearm_g_.spheres[j].radius_c, group.spheres[i].radius_c);
     }
     // vs left forearm
     for(size_t j = 0; j < lforearm_g_.spheres.size(); ++j)
     {
-      if((d = getDistanceBetweenPoints(lforearm_g_.spheres[j].voxel[0], lforearm_g_.spheres[j].voxel[1], lforearm_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2])) <= max(lforearm_g_.spheres[j].radius_c, group.spheres[i].radius_c))
+      //if((d =leatherman::distance(lforearm_g_.spheres[j].voxel[0], lforearm_g_.spheres[j].voxel[1], lforearm_g_.spheres[j].voxel[2],group.spheres[i].voxel[0], group.spheres[i].voxel[1], group.spheres[i].voxel[2])) <= max(lforearm_g_.spheres[j].radius, group.spheres[i].radius))
+      d = grid_->getResolution() * distance(lforearm_g_.spheres[j].voxel, group.spheres[i].voxel);
+      if(d <= max(lforearm_g_.spheres[j].radius, group.spheres[i].radius))
       {
-        if(d < int(dist))
+        if(d < dist)
           dist = d;
-        ROS_INFO("COLLISION");
+        ROS_INFO(" [%s-left_forearm] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
         return false;
       }
-      dist = min(d, int(dist));
-      //ROS_INFO("[cspace] [%s-left_forearm] sphere: %d arm_sphere: %d dist: %d  arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, lforearm_g_.spheres[j].radius_c, group.spheres[i].radius_c);
+      dist = min(d, dist);
+      ROS_DEBUG("[cspace] [%s-left_forearm] sphere: %d arm_sphere: %d dist: %0.3fm  arm_radius: %d  other_radius: %d", group.name.c_str(), int(i), int(j), d, lforearm_g_.spheres[j].radius_c, group.spheres[i].radius_c);
     }
   }
   return true;
 }
 
-bool PR2CollisionSpace::checkCollisionArmsToBody(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, unsigned char &dist)
+bool PR2CollisionSpace::checkCollisionArmsToBody(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, double &dist)
 {
   // compute arm kinematics
   arm_[0]->computeFK(rangles, pose, 10, &(rgripper_g_.f)); // right gripper
@@ -1605,33 +1408,33 @@ bool PR2CollisionSpace::checkCollisionArmsToBody(std::vector<double> &langles, s
  
   if(!checkCollisionArmsToGroup(base_g_, dist))
   {
-    ROS_INFO("[cspace] base - arms collision. (dist: %d)",dist);
+    ROS_INFO("[cspace] base - arms collision. (dist: %0.3fm)",dist);
     return false;
   }
   if(!checkCollisionArmsToGroup(turrets_g_, dist))
   {
-    ROS_INFO("[cspace] turrets - arms collision. (dist: %d)",dist);
+    ROS_INFO("[cspace] turrets - arms collision. (dist: %0.3fm)",dist);
     return false;
   }
   if(!checkCollisionArmsToGroup(tilt_laser_g_, dist))
   {
-    ROS_INFO("[cspace] tilt_laser - arms collision. (dist: %d)",dist);
+    ROS_INFO("[cspace] tilt_laser - arms collision. (dist: %0.3fm)",dist);
     return false;
   }
   if(!checkCollisionArmsToGroup(torso_upper_g_, dist))
   {
-    ROS_INFO("[cspace] torso_upper - arms collision. (dist: %d)",dist);
+    ROS_INFO("[cspace] torso_upper - arms collision. (dist: %0.3fm)",dist);
     return false;
   }
   if(!checkCollisionArmsToGroup(torso_lower_g_, dist))
   {
-    ROS_INFO("[cspace] torso_lower - arms collision. (dist: %d)",dist);
+    ROS_INFO("[cspace] torso_lower - arms collision. (dist: %0.3fm)",dist);
     return false;
   }
   if(!checkCollisionArmsToGroup(head_g_, dist))
   {
-  ROS_INFO("[cspace] head - arms collision. (dist: %d)",dist);
-  return false;
+    ROS_INFO("[cspace] head - arms collision. (dist: %0.3fm)",dist);
+    return false;
   }
 
   return true;
@@ -1649,7 +1452,7 @@ void PR2CollisionSpace::getCollisionSpheres(std::vector<double> &langles, std::v
     for(int i = 0; i < int(jnts.size()-1); ++i)
     {
       points.clear();
-      getLineSegment(jnts[i], jnts[i+1], points);
+      leatherman::getLineSegment(jnts[i], jnts[i+1], points);
       for(int j = 0; j < int(points.size()); ++j)
       {
         grid_->gridToWorld(points[j][0],points[j][1],points[j][2],xyzr[0],xyzr[1],xyzr[2]); 
@@ -1669,7 +1472,7 @@ void PR2CollisionSpace::getCollisionSpheres(std::vector<double> &langles, std::v
     for(int i = 0; i < int(jnts.size()-1); ++i)
     {
       points.clear();
-      getLineSegment(jnts[i], jnts[i+1], points);
+      leatherman::getLineSegment(jnts[i], jnts[i+1], points);
       for(int j = 0; j < int(points.size()); ++j)
       {
         grid_->gridToWorld(points[j][0],points[j][1],points[j][2],xyzr[0],xyzr[1],xyzr[2]); 
@@ -1757,7 +1560,7 @@ void PR2CollisionSpace::getCollisionSpheres(std::vector<double> &langles, std::v
   }
   
   getPointsInGroup(g.f, g, spheres);
-  ROS_DEBUG("[cspace] Returning %d spheres for %s group", int(spheres.size()), group_name.c_str());
+  ROS_DEBUG_NAMED(cspace_log_, "[cspace] Returning %d spheres for %s group", int(spheres.size()), group_name.c_str());
 }
 
 void PR2CollisionSpace::printGroupVoxels(Group &g, std::string text)
@@ -1769,7 +1572,7 @@ void PR2CollisionSpace::printGroupVoxels(Group &g, std::string text)
   }
 }
 
-bool PR2CollisionSpace::checkSpineMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkSpineMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
   // arm-base
   getMaptoRobotTransform(pose.x,pose.y,pose.theta,base_g_.f);
@@ -1800,7 +1603,7 @@ bool PR2CollisionSpace::checkSpineMotion(std::vector<double> &langles, std::vect
   return true;
 }
 
-bool PR2CollisionSpace::checkBaseMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkBaseMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
   // base-world
   if(!isBaseValid(pose.x, pose.y, pose.theta, dist))
@@ -1836,7 +1639,7 @@ bool PR2CollisionSpace::checkBaseMotion(std::vector<double> &langles, std::vecto
   return true;
 }
 
-bool PR2CollisionSpace::checkArmsMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkArmsMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
   // arms-world, arms-arms
   if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code))
@@ -1849,7 +1652,7 @@ bool PR2CollisionSpace::checkArmsMotion(std::vector<double> &langles, std::vecto
   return true;
 }
 
-bool PR2CollisionSpace::checkAllMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::checkAllMotion(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
   // attached_object-world
   if(!isAttachedObjectValid(langles, rangles, pose, verbose, dist, debug_code))
@@ -1868,21 +1671,6 @@ bool PR2CollisionSpace::checkAllMotion(std::vector<double> &langles, std::vector
     return false;
 
   return true;
-}
-
-void PR2CollisionSpace::getIntermediatePoints(KDL::Vector a, KDL::Vector b, double d, std::vector<KDL::Vector>& points)
-{
-	KDL::Vector pt, dir;
-	int interm_points = floor(distance(a, b) / d + 0.5);
-
-	dir = b - a;
-	points.clear();
-	points.push_back(a);
-	for (int i = 1; i <= interm_points; i++) {
-		pt = a + dir * i * d;
-		points.push_back(pt);
-	}
-	points.push_back(b);
 }
 
 /* ******************  Attached Object **************** */
@@ -1928,9 +1716,13 @@ void PR2CollisionSpace::attachSphere(std::string name, std::string link, geometr
   else
   {
     obj.side = pr2_collision_checker::Body;
+    if(!leatherman::getSegmentIndex(full_body_chain_, link, obj.kdl_segment))
+      return;
+    /*
     obj.kdl_segment = getSegmentIndex(link, full_body_chain_);
     if(obj.kdl_segment == -1)
       return;
+    */
   }
 
   obj.spheres.resize(1);
@@ -1949,7 +1741,7 @@ void PR2CollisionSpace::attachSphere(std::string name, std::string link, geometr
   else
     objects_.push_back(obj);
 
-  //ROS_INFO("[cspace] [attached_object] Attached '%s' sphere to the %s arm.  pose: %0.3f %0.3f %0.3f radius: %0.3fm (%d cells)", name.c_str(), arm_side_names[obj.side].c_str(), pose.position.x,pose.position.y,pose.position.z, obj.spheres[0].radius, obj.spheres[0].radius_c);
+  ROS_DEBUG_NAMED(cspace_log_, "[cspace] [attached_object] Attached '%s' sphere to the %s arm.  pose: %0.3f %0.3f %0.3f radius: %0.3fm (%d cells)", name.c_str(), arm_side_names[obj.side].c_str(), pose.position.x,pose.position.y,pose.position.z, obj.spheres[0].radius, obj.spheres[0].radius_c);
 }
 
 void PR2CollisionSpace::attachCylinder(std::string name, std::string link, geometry_msgs::Pose pose, double radius, double length)
@@ -1981,7 +1773,7 @@ void PR2CollisionSpace::attachCylinder(std::string name, std::string link, geome
   bottom.data[2] -= length/2.0;
 
   // get spheres 
-  getIntermediatePoints(top, bottom, radius, points);
+  leatherman::getIntermediatePoints(top, bottom, radius, points);
 
   if(points.size() < 1)
   {
@@ -2034,10 +1826,10 @@ void PR2CollisionSpace::attachCube(std::string name, std::string link, geometry_
       return;
   }
 
-  sbpl::SphereEncloser::encloseBox(x_dim, y_dim, z_dim, cube_filling_sphere_radius_, spheres);
+  sbpl::SphereEncloser::encloseBox(x_dim, y_dim, z_dim, object_filling_sphere_radius_, spheres);
 
   if(spheres.size() <= 3)
-    ROS_WARN("[cspace] Attached cube is represented by %d collision spheres. Consider lowering the radius of the spheres used to populate the attached cube. (radius = %0.3fm)", int(spheres.size()), cube_filling_sphere_radius_);
+    ROS_WARN("[cspace] Attached cube is represented by %d collision spheres. Consider lowering the radius of the spheres used to populate the attached cube. (radius = %0.3fm)", int(spheres.size()), object_filling_sphere_radius_);
 
   obj.spheres.resize(spheres.size());
   for(size_t i = 0; i < spheres.size(); ++i)
@@ -2084,10 +1876,10 @@ void PR2CollisionSpace::attachMesh(std::string name, std::string link, geometry_
     if(obj.kdl_segment == -1)
       return;
   }
-  sbpl::SphereEncloser::encloseMesh(vertices, triangles, cube_filling_sphere_radius_, spheres);
+  sbpl::SphereEncloser::encloseMesh(vertices, triangles, object_filling_sphere_radius_, spheres);
   
   if(spheres.size() <= 3)
-    ROS_WARN("[cspace] Attached mesh is represented by %d collision spheres. Consider lowering the radius of the spheres used to populate the attached mesh more accuratly. (radius = %0.3fm)", int(spheres.size()), cube_filling_sphere_radius_);
+    ROS_WARN("[cspace] Attached mesh is represented by %d collision spheres. Consider lowering the radius of the spheres used to populate the attached mesh more accuratly. (radius = %0.3fm)", int(spheres.size()), object_filling_sphere_radius_);
 
   obj.spheres.resize(spheres.size());
   for(size_t i = 0; i < spheres.size(); ++i)
@@ -2167,15 +1959,15 @@ void PR2CollisionSpace::getAttachedObjectVoxels(const std::vector<double> &langl
     grid_->worldToGrid(spheres[i][0],spheres[i][1],spheres[i][2],voxels[i][0],voxels[i][1],voxels[i][2]);
     voxels[i][3] = spheres[i][4];
   }
-  ROS_DEBUG("[cspace] Fetched %d voxels.", int(voxels.size()));
+  ROS_DEBUG_NAMED(cspace_log_, "[cspace] Fetched %d voxels.", int(voxels.size()));
 }
 
-bool PR2CollisionSpace::isAttachedObjectValid(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, unsigned char &dist, int &debug_code)
+bool PR2CollisionSpace::isAttachedObjectValid(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
   if(!is_object_attached_)
     return true;
 
-  unsigned char dist_temp = 100;
+  double dist_temp = 100.0;
   std::vector<std::vector<int> > voxels;
   getAttachedObjectVoxels(langles, rangles, pose, voxels);
 
@@ -2184,19 +1976,14 @@ bool PR2CollisionSpace::isAttachedObjectValid(const std::vector<double> &langles
     // check bounds
     if(!grid_->isInBounds(voxels[i][0], voxels[i][1], voxels[i][2]))
     {
-      //if(verbose)
-      //{
       int dimx, dimy, dimz;
       grid_->getGridSize(dimx,dimy,dimz);
-
-      //ROS_DEBUG_NAMED(cspace_log_,"[cspace] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), voxels[i][0], voxels[i][1], voxels[i][2], dimx, dimy, dimz);
-      ROS_INFO("[cspace] [attached object] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), voxels[i][0], voxels[i][1], voxels[i][2], dimx, dimy, dimz);
-      //}
+      ROS_WARN("[cspace] [attached object] Sphere %d is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", int(i), voxels[i][0], voxels[i][1], voxels[i][2], dimx, dimy, dimz);
       return false;
     }
 
     // check collision
-    if((dist_temp = grid_->getCell(voxels[i][0], voxels[i][1], voxels[i][2])) <= voxels[i][3])
+    if((dist_temp = grid_->getDistance(voxels[i][0], voxels[i][1], voxels[i][2])) <= voxels[i][3])
     {
       dist = dist_temp;
       debug_code = sbpl_arm_planner::ATTACHED_OBJECT_IN_COLLISION;
@@ -2207,66 +1994,6 @@ bool PR2CollisionSpace::isAttachedObjectValid(const std::vector<double> &langles
       dist = dist_temp;
   }
   return true;
-}
-
-std::string PR2CollisionSpace::getExpectedAttachedObjectFrame(std::string frame)
-{
-  int ind=-1;
-
-  // is the object attached to the right arm?
-  if((ind = arm_[0]->getSegmentIndex(frame)) > -1 || frame.compare("r_gripper_l_finger_tip_link") == 0)
-  {
-    ROS_INFO("[cspace] Attached object frame (%s) was found in the right arm kdl chain at index: %d.", frame.c_str(), ind);
-    return "r" + attached_object_frame_suffix_;
-  }
-  // is the object attached to the left arm?
-  else if((ind = arm_[1]->getSegmentIndex(frame)) > -1 || frame.compare("l_gripper_l_finger_tip_link") == 0)
-  {
-    ROS_INFO("[cspace] Attached object frame (%s) was found in the left arm kdl chain at index: %d.", frame.c_str(), ind);
-    return "l" + attached_object_frame_suffix_;
-  }
-  // is the object attached to the body?
-  else if((ind = getSegmentIndex(frame, full_body_chain_)) > -1)
-  {
-    ROS_INFO("[cspace] Attached object frame (%s) was found in the body kdl chain at index: %d.", frame.c_str(), ind);
-    return "base_link";
-  }
-  else
-  {
-    ROS_ERROR("[cspace] Cannot compute kinematics for the attached object frame, '%s', so I'm not attaching it.", frame.c_str());
-    return "";
-  }
-}
-
-// NOT USED
-bool PR2CollisionSpace::getAttachedFrameInfo(std::string frame, int &segment, int &chain)
-{  
-  // is the object attached to the right arm?
-  if((segment = arm_[0]->getSegmentIndex(frame)) > -1)
-  {
-    ROS_INFO("[cspace] Attached object frame (%s) was found in the right arm kdl chain at index: %d.", frame.c_str(), segment);
-    chain = pr2_collision_checker::Right;
-    return true;
-  }
-  // is the object attached to the left arm?
-  else if((segment = arm_[1]->getSegmentIndex(frame)) > -1)
-  {
-    ROS_INFO("[cspace] Attached object frame (%s) was found in the left arm kdl chain at index: %d.", frame.c_str(), segment);
-    chain = pr2_collision_checker::Left;
-    return true;
-  }
-  // is the object attached to the body?
-  else if((segment = getSegmentIndex(frame, full_body_chain_)) > -1)
-  {
-    ROS_INFO("[cspace] Attached object frame (%s) was found in the body kdl chain at index: %d.", frame.c_str(), segment);
-    chain = pr2_collision_checker::Body;
-    return true;
-  }
-  else
-  {
-    ROS_ERROR("[cspace] Cannot compute kinematics for the attached object frame, '%s', so can't attach it.", frame.c_str());
-    return false;
-  }
 }
 
 int PR2CollisionSpace::getAttachedObjectIndex(std::string name)
@@ -2299,7 +2026,7 @@ int PR2CollisionSpace::getSegmentIndex(std::string &name, KDL::Chain &chain)
     if(chain.getSegment(k).getName().compare(name) == 0)
       return k;
   }
-  ROS_DEBUG("Failed to find %s segment in the chain.", name.c_str());
+  ROS_DEBUG_NAMED(cspace_log_, "Failed to find %s segment in the chain.", name.c_str());
   return -1;
 }
 
@@ -2316,11 +2043,122 @@ void PR2CollisionSpace::storeCollisionMap(const arm_navigation_msgs::CollisionMa
   last_collision_map_ = collision_map;
 }
 
-std::vector<Eigen::Vector3d> PR2CollisionSpace::btVectorToEigenVector(const std::vector<btVector3> &bt)
+/* TAR Project */
+bool PR2CollisionSpace::checkGroupAgainstWorld(Group* group, double &dist)
 {
-  std::vector<Eigen::Vector3d> e(bt.size());
-  for(size_t i = 0; i < bt.size(); ++i)
-    leatherman::btVector3ToEigen(bt[i],e[i]);
-  return e;
+  double dist_temp = 100.0;
+
+  getVoxelsInGroup(group->f, *group);
+  for(size_t i = 0; i < group->spheres.size(); ++i)
+  {
+    // check bounds
+    if(!grid_->isInBounds(group->spheres[i].voxel[0], group->spheres[i].voxel[1], group->spheres[i].voxel[2]))
+    {
+      int dimx, dimy, dimz;
+      grid_->getGridSize(dimx,dimy,dimz);
+      ROS_WARN("[cspace] Sphere '%s' of group '%s' is out of bounds. (xyz: %d %d %d,  dims: %d %d %d)", group->spheres[i].name.c_str(), group->name.c_str(), group->spheres[i].voxel[0], group->spheres[i].voxel[1], group->spheres[i].voxel[2], dimx, dimy, dimz);
+      return false;
+    }
+    if((dist_temp = grid_->getDistance(group->spheres[i].voxel[0], group->spheres[i].voxel[1], group->spheres[i].voxel[2])) <= group->spheres[i].radius)
+    {
+      dist = dist_temp;
+      return false;
+    }
+    
+    if(dist > dist_temp)
+      dist = dist_temp;
+  }
+  return true;
 }
+
+bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dist)
+{
+  double d = 100.0;
+  dist = 100.0;
+  KDL::Vector v1, v2;
+
+  for(size_t i = 0; i < g1->spheres.size(); ++i)
+  {
+    v1 = g1->f * g1->spheres[i].v;
+    for(size_t j = 0; j < g2->spheres.size(); ++j)
+    {
+      v2 = g2->f * g2->spheres[j].v;
+      d = leatherman::distance(v1, v2);
+
+      if(d <= max(g1->spheres[i].radius, g2->spheres[j].radius))
+      {
+        if(d < dist)
+          dist = d;
+        ROS_INFO(" [%s-%s] COLLISION {sphere1: %s  sphere2: %s dist: %0.3fm}", g1->name.c_str(), g2->name.c_str(), g1->spheres[i].name.c_str(), g2->spheres[j].name.c_str(), d);
+        return false;
+      }
+      dist = min(d, dist);
+    }
+  }
+  return true;
+}
+
+bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist)
+{
+  double d = 100.0;
+  // arms-world, arms-arms
+  if(!checkCollisionArms(langles, rangles, pose, verbose, dist))
+    return false;
+
+  // body-world
+  if(!isBodyValid(pose.x, pose.y, pose.theta, pose.z, d))
+    return false;
+
+  dist = min(dist,d);
+  return true;
+}
+
+bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
+{
+  double d = 100.0;
+  dist = 100.0;
+  std::vector<std::vector<double> > lspheres, gspheres;
+  
+  // transform all spheres in group
+  KDL::Vector v;
+  gspheres.resize(group->spheres.size(), std::vector<double>(4));
+  for(size_t k = 0; k < group->spheres.size(); ++k)
+  {
+    v = group->f * group->spheres[k].v;
+    gspheres[k][0] = v.x();
+    gspheres[k][1] = v.y();
+    gspheres[k][2] = v.z();
+    gspheres[k][3] = group->spheres[k].radius; 
+  }
+
+  // for all robot links except arms
+  for(size_t i = 0; i < all_g_.size(); ++i)
+  {
+    getCollisionSpheres(langles, rangles, pose, all_g_[i].name, lspheres);
+    
+    if(lspheres.empty())
+      ROS_ERROR("No spheres were found for group '%s'...that seems unlikely.", all_g_[i].name.c_str());
+
+    for(size_t j = 0; j < lspheres.size(); ++j)
+    {
+      for(size_t k = 0; k < gspheres.size(); ++k)
+      {
+        d = leatherman::distance(lspheres[j][0], lspheres[j][1], lspheres[j][2], gspheres[k][0], gspheres[k][1], gspheres[k][2]);
+        
+        if(d <= max(lspheres[j][3], gspheres[k][3]))
+        {
+          if(verbose)
+            ROS_INFO(" [%s-%s] COLLISION {sphere1: %s  sphere2: %s dist: %0.3fm}", group->name.c_str(), all_g_[i].name.c_str(), group->spheres[k].name.c_str(), all_g_[i].spheres[j].name.c_str(), d);
+
+          dist = d;
+          return false;
+        }
+        dist = min(dist,d);
+      }
+    }
+  }
+
+  return true;
+}
+
 }
