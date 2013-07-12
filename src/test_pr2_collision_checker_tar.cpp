@@ -33,6 +33,9 @@
 #include <ctime>
 #include <leatherman/viz.h>
 
+#define SPHERE_RADIUS 0.04
+#define GROUP_MESH_FILENAME "package://pr2_description/meshes/upper_arm_v0/upper_arm.stl"
+
 PViz *pviz;
 pr2_collision_checker::PR2CollisionSpace *cspace;
 
@@ -106,10 +109,9 @@ bool addMesh(std::string filename, std::string name, geometry_msgs::Pose pose)
   return true;
 }
 
-/*
-Group getGroup(geometry_msgs::Pose &pose, std::string name, std::string filename)
+pr2_collision_checker::Group getGroup(geometry_msgs::Pose &pose, std::string name, std::string filename)
 {
-  Group g;
+  pr2_collision_checker::Group g;
   g.name = name;
   std::vector<int32_t> triangles;
   std::vector<geometry_msgs::Point> vertices;
@@ -118,12 +120,23 @@ Group getGroup(geometry_msgs::Pose &pose, std::string name, std::string filename
     ROS_ERROR("Failed to get mesh for group.");
     return g;
   }
-        std::vector<Sphere> spheres;
-          int kdl_chain;
-            int kdl_segment;
-              KDL::Frame f; // temp variable
+  Eigen::Affine3d t;
+  leatherman::poseFromMsg(pose, t);
+  leatherman::transformEigenToKDL(t, g.f);
+
+  std::vector<std::vector<double> > spheres;
+  sbpl::SphereEncloser::encloseMesh(vertices, triangles, SPHERE_RADIUS, spheres, false);
+
+  g.spheres.resize(spheres.size());
+  for(size_t i = 0; i < spheres.size(); ++i)
+  {
+    g.spheres[i].v.x(spheres[i][0]);
+    g.spheres[i].v.y(spheres[i][1]);
+    g.spheres[i].v.z(spheres[i][2]);
+    g.spheres[i].radius = SPHERE_RADIUS;
+    g.spheres[i].radius_c = SPHERE_RADIUS / 0.02;
+  }
 }
-*/
 
 int main(int argc, char **argv)
 {
@@ -192,12 +205,8 @@ int main(int argc, char **argv)
     ROS_ERROR("[pr2cc] Failed to get the full body spheres from the param server.");
     return -1;
   }
-  else
-    cspace->printSphereGroups();
-
-  
-  // create the collision space monitor
-  //cspace_mon = new pr2_collision_checker::PR2CollisionSpaceInterface(grid, cspace);
+  //else
+  //  cspace->printSphereGroups();
 
   int debug_code=200;
   double dist=100.0;
@@ -206,11 +215,12 @@ int main(int argc, char **argv)
   BodyPose body(0,0,0,0);
   arm_navigation_msgs::RobotState state;
   srand(time(NULL));
-  visualization_msgs::Marker m, m1;
-  geometry_msgs::Pose p, p1;
+  visualization_msgs::Marker m, m1, m2;
+  geometry_msgs::Pose p, p1, p2;
   p.position.x = 3; p.position.y = -3; p.position.z = 3.0; p.orientation.w = 1;
-  p1 = p;
+  p1 = p; p2 = p;
   p1.position.x += 0.0; p1.position.y += 0.6; p1.position.z -= 0.5;
+  p2.position.x -= 4.0; p2.position.y += 0.6; p2.position.z -= 0.5; // group
 
   geometry_msgs::Pose op;
   op.position.x = 0; op.position.y = 0; op.position.z = 1.1; op.orientation.w = 1;
@@ -273,10 +283,38 @@ int main(int argc, char **argv)
       ROS_INFO("Yay! I'm self-collision free! {dist: %0.3fm}", dist);
       m1 = viz::getTextMarker(p1, "    me:   yay!", 0.4, 100, "map", "robot-robot_result", 0);
     }
-   
+ 
+    ROS_INFO(" ");
+
+    // group functions
+    geometry_msgs::Pose pg;
+    double rgx = (double)rand()/(double)RAND_MAX;
+    double rgy = (double)rand()/(double)RAND_MAX;
+    double rgz = (double)rand()/(double)RAND_MAX;
+ 
+    pg.position.x = rgx*sizeX + originX;
+    pg.position.y = rgy*sizeY + originY; 
+    pg.position.z = rgz*(sizeZ) + originZ; 
+    pg.orientation.w = 1.0;
+
+    pr2_collision_checker::Group g = getGroup(pg, "upper_arm", "package://pr2_description/meshes/upper_arm_v0/upper_arm.stl");
+
+    if(!cspace->checkGroupAgainstWorld(&g, dist))
+    {
+      ROS_ERROR("Group in collision! {dist: %0.3fm}", dist);
+      m2 = viz::getTextMarker(p2, "world: ouchy!", 0.4, 10, "map", "group-world_result", 0);
+    }
+    else 
+    {
+      ROS_INFO("Yay! Group is collision free! {dist: %0.3fm}", dist);
+      m2 = viz::getTextMarker(p2, "world:   yay!", 0.4, 100, "map", "group-world_result", 0);
+    }
+
+
     ma = cspace->getCollisionModelVisualization(rangles, langles, body, "collision_model", 0);
     ma.markers.push_back(m);
     ma.markers.push_back(m1);
+    ma.markers.push_back(m2);
     pviz->publishMarkerArray(ma);
     ma = cspace->getVisualization("bounds", "bounds", 0);
     pviz->publishMarkerArray(ma);
@@ -284,6 +322,13 @@ int main(int argc, char **argv)
     pviz->publishMarkerArray(ma);
     ma = cspace->getVisualization("collision_objects", "collision_objects", 0);
     pviz->publishMarkerArray(ma);
+
+    geometry_msgs::PoseStamped pgs;
+    pgs.pose = pg;
+    pgs.header.frame_id = "map";
+    m = viz::getMeshMarker(pgs, GROUP_MESH_FILENAME, 270, "group_object", 0);
+    pviz->publishMarker(m);
+
     sleep(1.0);
     pviz->deleteVisualizations("collision_model", 400);
   }

@@ -51,6 +51,7 @@
 #include <sbpl_geometry_utils/Interpolator.h>
 #include <sbpl_geometry_utils/SphereEncloser.h>
 #include <arm_navigation_msgs/CollisionObject.h>
+#include <pviz/pviz.h>
 
 using namespace std;
 
@@ -245,6 +246,9 @@ class PR2CollisionSpace
 
     /** @brief occupancy grid used by planner */
     sbpl_arm_planner::OccupancyGrid* grid_;
+
+    // just for TAR project
+    PViz pviz_;
 
     std::string cspace_log_;
 

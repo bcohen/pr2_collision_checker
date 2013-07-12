@@ -126,6 +126,7 @@ bool PR2CollisionSpace::init()
   if(!getSphereGroups())
     return false;
 
+  pviz_.setReferenceFrame(grid_->getReferenceFrame());
   return true;
 }
 
@@ -650,6 +651,7 @@ void PR2CollisionSpace::processCollisionObjectMsg(const arm_navigation_msgs::Col
 void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionObject &object)
 {
   geometry_msgs::Pose pose;
+  std::vector<std::vector<double> > voxels;
   if(!object.shapes.empty())
     object_voxel_map_[object.id].clear();
 
@@ -657,15 +659,13 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
   {
     if(object.shapes[i].type == arm_navigation_msgs::Shape::BOX)
     {
-      std::vector<std::vector<double> > voxels;
       sbpl::Voxelizer::voxelizeBox(object.shapes[i].dimensions[0], object.shapes[i].dimensions[1], object.shapes[i].dimensions[2], object.poses[i], grid_->getResolution(), voxels, false); 
       for(size_t j = 0; j < voxels.size(); ++j)
         object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
     }
     else if(object.shapes[i].type == arm_navigation_msgs::Shape::MESH)
     {
-      ROS_INFO("[cspace] Voxelizing the mesh...");
-      std::vector<std::vector<double> > voxels;
+      ROS_INFO("[cspace] Voxelizing the mesh...(%s)", object.id.c_str());
       sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, object.poses[i], 0.02, voxels, false);
 
       for(size_t j = 0; j < voxels.size(); ++j)
@@ -2234,21 +2234,31 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   std::vector<geometry_msgs::Point> vertices;
   std::vector<int> triangles;
   obj.header.frame_id = grid_->getReferenceFrame();
-  obj.id = name;
+  if(name.empty())
+    obj.id = mesh_resource;
+  else
+    obj.id = name;
   obj.operation.operation = arm_navigation_msgs::CollisionObjectOperation::ADD;
   obj.shapes.resize(1);
   obj.poses.push_back(pose);
   obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
   object_map_[obj.id] = obj;
-  if(!leatherman::getMeshComponentsFromResource(mesh_resource, triangles, vertices))
+  if(!leatherman::getMeshComponentsFromResource(mesh_resource, obj.shapes[0].triangles, obj.shapes[0].vertices))
   {
     ROS_ERROR("Failed to get mesh.");
     return false;
   }
-  obj.shapes[0].triangles = triangles;
-  obj.shapes[0].vertices = vertices;
+  ROS_INFO("[cc] Retrieved mesh with %d triangles and %d vertices. (%s)", int(triangles.size()), int(vertices.size()), mesh_resource.c_str());
 
   addCollisionObject(obj); 
+  
+  visualization_msgs::MarkerArray ma;
+  ma  = getVisualization("collision_objects", "collision_objects", 0);
+  pviz_.publishMarkerArray(ma);
+  ma  = getVisualization("distance_field", "distance_field", 0);
+  pviz_.publishMarkerArray(ma);
+  ma  = getVisualization("bounds", "bounds", 0);
+  pviz_.publishMarkerArray(ma);
   return true;
 }
 
