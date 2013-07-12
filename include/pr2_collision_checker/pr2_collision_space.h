@@ -239,6 +239,12 @@ class PR2CollisionSpace
     void addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name);
     bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name);
 
+    visualization_msgs::MarkerArray getGroupVisualization(Group &group, std::string ns, int id);
+
+    void visualizeGroup(Group &group, std::string ns, int id);
+
+    void printRobotState(std::vector<double> &rangles, std::vector<double> &langles,    BodyPose &body_pos, std::string text);
+
   private:
 
     /** @brief arm model used by planner */

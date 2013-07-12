@@ -51,6 +51,8 @@ PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, 
   delete_objects_ = false;
   cspace_log_ = "cspace";
   attached_object_frame_suffix_ = "_wrist_roll_link";
+  head_pan_angle_ = 0;
+  head_tilt_angle_ = 0;
 
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
@@ -63,6 +65,7 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
   FILE* rarm_fp=NULL;
   FILE* larm_fp=NULL;
 
+  ROS_INFO("[pr2cc] Opening the arm config files to instantiate the arms."); fflush(stdout);
   // create the left & right arm models
   if((rarm_fp=fopen(rarm_filename.c_str(),"r")) == NULL)
     ROS_ERROR("[pr2cc] Failed to open right arm description file.");
@@ -84,6 +87,8 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
   fclose(rarm_fp);
   fclose(larm_fp);
 
+  ROS_INFO("[pr2cc] Creating the occupancy grid."); fflush(stdout);
+
   // create the occupancy grid
   grid_ = new sbpl_arm_planner::OccupancyGrid(dims[0], dims[1], dims[2], resolution, origin[0], origin[1], origin[2]);
   grid_->setReferenceFrame(frame_id);
@@ -96,6 +101,7 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
   inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
+  ROS_INFO("[cc] Finished constructor.");
 }
 
 PR2CollisionSpace::~PR2CollisionSpace()
@@ -236,28 +242,28 @@ bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPo
 
 bool PR2CollisionSpace::checkCollision(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, bool verbose, double &dist, int &debug_code)
 {
-  ROS_INFO("Checking arms.");
+  ROS_DEBUG("Checking arms.");
   if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code))
   {
     if(verbose)
       ROS_INFO("[cspace] Arms are in collision.");
     return false;
   }
-  ROS_INFO("Checking body. {dist before check: %0.3fm}", dist);
+  ROS_DEBUG("Checking body. {dist before check: %0.3fm}", dist);
   if(!isBodyValid(pose.x, pose.y, pose.theta, pose.z, dist))
   {
     if(verbose)
       ROS_INFO("[cspace] Body is in collision.");
     return false;
   }
-  ROS_INFO("Checking arms -> body. {dist before check: %0.3fm}", dist);
+  ROS_DEBUG("Checking arms -> body. {dist before check: %0.3fm}", dist);
   if(!checkCollisionArmsToBody(langles, rangles, pose, dist))
   {
     if(verbose)
       ROS_INFO("[cspace] Arms are in collision with body.");
     return false;
   }
-  ROS_INFO("{dist after check: %0.3fm}", dist);
+  ROS_DEBUG("{dist after check: %0.3fm}", dist);
   return true;
 }
 
@@ -1129,6 +1135,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
 
   // base
   getVoxelsInGroup(base_g_.f, base_g_);
+  ROS_INFO("[cc] Checking base...");
   for(size_t i = 0; i < base_g_.spheres.size(); ++i)
   {
     // check bounds
@@ -1152,6 +1159,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
   // lower torso
   torso_lower_g_.f = base_g_.f;
   getVoxelsInGroup(base_g_.f, torso_lower_g_);
+  ROS_INFO("[cc] Checking torso...");
   for(size_t i = 0; i < torso_lower_g_.spheres.size(); ++i)
   {
     // check bounds
@@ -1171,6 +1179,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
     if(dist > dist_temp)
       dist = dist_temp;
   }
+  ROS_INFO("[cc] Base & torso are valid.");
   return true;
 }
 
@@ -1178,7 +1187,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
 {
   double dist_temp = 100.0;
 
-  ROS_DEBUG("[cspace] Checking Torso. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f torso_kdl_num: %d",x,y,theta,torso,torso_upper_g_.kdl_segment);
+  ROS_INFO("[cspace] Checking Torso. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f torso_kdl_num: %d",x,y,theta,torso,torso_upper_g_.kdl_segment);
   if(!computeFullBodyKinematics(x,y,theta,torso, torso_upper_g_.kdl_segment, torso_upper_g_.f))
   {
     ROS_ERROR("[cspace] Failed to compute FK for torso.");
@@ -1186,6 +1195,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
   }
 
   // upper torso
+  ROS_INFO("[cc] Checking upper_torso-world.");
   getVoxelsInGroup(torso_upper_g_.f, torso_upper_g_);
   for(size_t i = 0; i < torso_upper_g_.spheres.size(); ++i)
   {
@@ -1207,6 +1217,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
   // tilt laser
+  ROS_INFO("[cc] Checking tilt_laser-world.");
   tilt_laser_g_.f = torso_upper_g_.f;
   getVoxelsInGroup(tilt_laser_g_.f, tilt_laser_g_);
   for(size_t i = 0; i < tilt_laser_g_.spheres.size(); ++i)
@@ -1229,6 +1240,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
   // turrets
+  ROS_INFO("[cc] Checking turrets-world.");
   turrets_g_.f = torso_upper_g_.f;
   getVoxelsInGroup(turrets_g_.f, turrets_g_);
   for(size_t i = 0; i < turrets_g_.spheres.size(); ++i)
@@ -1251,6 +1263,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
 
+  ROS_INFO("[cc] Torso is valid.");
   return true;
 }
 
@@ -1266,6 +1279,7 @@ bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double tor
   }
 
   // head
+  ROS_INFO("[cc] Checking head-world.");
   getVoxelsInGroup(head_g_.f, head_g_);
   for(size_t i = 0; i < head_g_.spheres.size(); ++i)
   {
@@ -2081,15 +2095,42 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
 bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
   double d = 100.0; int debug_code=100;
+  dist = 100.0;
+
+  if(verbose)
+    printRobotState(rangles, langles, pose, "cc");
+
   // arms-world
   if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code, false))
+  {
+    if(verbose)
+      ROS_INFO("[cc] Arms-world collision  (dist: %0.3fm)", dist);
+    geometry_msgs::Pose p;
+    p.position.x = 0.4; p.position.z = 3.0; p.orientation.w = 1.0;
+    pviz_.visualizeText(p, "arms-world: yes", "robot-world", 0, 10);
     return false;
-
+  }
   // body-world
+  if(verbose)
+    ROS_INFO("[cc] Checking body-world");
   if(!isBodyValid(pose.x, pose.y, pose.theta, pose.z, d))
+  {
+    if(verbose)
+      ROS_INFO("[cc] Body-world collision  (dist: %0.3fm)", dist);
+    geometry_msgs::Pose p;
+    p.position.x = 0.4; p.position.z = 3.0; p.orientation.w = 1.0;
+    pviz_.visualizeText(p, "body-world: yes", "robot-world", 0, 10);
     return false;
-
+  }
   dist = min(dist,d);
+
+  if(verbose)
+    ROS_INFO("[cc] Robot-world *NO* collision  (dist: %0.3fm)", dist);
+
+  geometry_msgs::Pose p;
+  p.position.x = 0.4; p.position.z = 3.0; p.orientation.w = 1.0;
+  pviz_.visualizeText(p, "robot-world:  no", "robot-world", 0, 200);
+  ROS_INFO("[cc] robot-world  No collision");
   return true;
 }
 
@@ -2099,6 +2140,10 @@ bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std
   double d = 100.0;
   if(!checkCollisionBetweenArms(langles,rangles, pose, verbose, d))
   {
+    geometry_msgs::Pose p;
+    p.position.x = 0.4; p.position.z = 2.6; p.orientation.w = 1.0;
+    pviz_.visualizeText(p, "arms-arms: yes", "arms-arms", 0, 10);
+
     if(verbose)
       ROS_INFO("  Arms are in collision with each other. (dist %0.3fm)", d);
     return false;
@@ -2106,11 +2151,20 @@ bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std
 
   //arms-body
   if(!checkCollisionArmsToBody(langles, rangles, pose, dist))
+  {
+    geometry_msgs::Pose p;
+    p.position.x = 0.4; p.position.z = 2.6; p.orientation.w = 1.0;
+    pviz_.visualizeText(p, "arms-body: yes", "arms-arms", 0, 10);
     return false;
-
+  }
   dist = min(d,dist);
+
+  geometry_msgs::Pose p;
+  p.position.x = 0.4; p.position.z = 2.6; p.orientation.w = 1.0;
+  pviz_.visualizeText(p, "arms-arms: no", "arms-arms", 0, 10);
   return true;
 }
+
 bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
 {
   double d = 100.0;
@@ -2147,6 +2201,11 @@ bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std
         {
           if(verbose)
             ROS_INFO(" [%s-%s] COLLISION {sphere1: %s  sphere2: %s dist: %0.3fm}", group->name.c_str(), all_g_[i].name.c_str(), group->spheres[k].name.c_str(), all_g_[i].spheres[j].name.c_str(), d);
+          
+          geometry_msgs::Pose p;
+          p.position.x = 0.4; p.position.z = 2.2; p.orientation.w = 1.0;
+          pviz_.visualizeText(p, "body-"+ group->name + ": yes", "body"+group->name, 0, 10);
+
 
           dist = d;
           return false;
@@ -2157,6 +2216,33 @@ bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std
   }
 
   return true;
+}
+
+visualization_msgs::MarkerArray PR2CollisionSpace::getGroupVisualization(Group &group, std::string ns, int id)
+{
+  visualization_msgs::MarkerArray ma;
+  std::vector<std::vector<double> > spheres(group.spheres.size(), std::vector<double> (4,0.0));
+  std::vector<int> hues;
+
+  getPointsInGroup(group.f, group, spheres);
+  /*
+  for(std::size_t i = 0; i < group.spheres.size(); ++i)
+  {
+    spheres[i][0] = group.spheres[i].v.x();
+    spheres[i][1] = group.spheres[i].v.y();
+    spheres[i][2] = group.spheres[i].v.z();
+    spheres[i][3] = group.spheres[i].radius;
+  }
+  */
+  hues.resize(spheres.size(), 70);
+  ma = viz::getSpheresMarkerArray(spheres, hues, grid_->getReferenceFrame(), ns, id);
+  return ma;
+}
+
+void PR2CollisionSpace::visualizeGroup(Group &group, std::string ns, int id)
+{
+  visualization_msgs::MarkerArray ma = getGroupVisualization(group, ns, id);
+  pviz_.publishMarkerArray(ma);
 }
 
 visualization_msgs::MarkerArray PR2CollisionSpace::getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id)
@@ -2231,8 +2317,8 @@ void PR2CollisionSpace::addCollisionObjectMesh(const std::vector<geometry_msgs::
 bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name)
 {
   arm_navigation_msgs::CollisionObject obj;
-  std::vector<geometry_msgs::Point> vertices;
-  std::vector<int> triangles;
+  //std::vector<geometry_msgs::Point> vertices;
+  //std::vector<int> triangles;
   obj.header.frame_id = grid_->getReferenceFrame();
   if(name.empty())
     obj.id = mesh_resource;
@@ -2248,7 +2334,7 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
     ROS_ERROR("Failed to get mesh.");
     return false;
   }
-  ROS_INFO("[cc] Retrieved mesh with %d triangles and %d vertices. (%s)", int(triangles.size()), int(vertices.size()), mesh_resource.c_str());
+  ROS_INFO("[cc] Retrieved mesh with %d triangles and %d vertices. (%s)", int(obj.shapes[0].triangles.size()), int(obj.shapes[0].vertices.size()), mesh_resource.c_str());
 
   addCollisionObject(obj); 
   
@@ -2261,5 +2347,11 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   pviz_.publishMarkerArray(ma);
   return true;
 }
-
+void PR2CollisionSpace::printRobotState(std::vector<double> &rangles, std::vector<double> &langles,    BodyPose &body_pos, std::string text)
+{
+  ROS_INFO("robot state:  %s", text.c_str());
+  ROS_INFO("     x: %0.3f  y: % 0.3f  z: %0.3f yaw: % 0.3f", body_pos.x, body_pos.y, body_pos.z, body_pos.      theta);
+  ROS_INFO(" right: % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f", rangles[0], rangles[1], rangles[2],      rangles[3], rangles[4], rangles[5], rangles[6]);
+  ROS_INFO("  left: % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f", langles[0], langles[1], langles[2],      langles[3], langles[4], langles[5], langles[6]);
+}
 }
