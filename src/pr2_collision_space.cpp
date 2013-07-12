@@ -664,10 +664,13 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
     }
     else if(object.shapes[i].type == arm_navigation_msgs::Shape::MESH)
     {
+      ROS_INFO("[cspace] Voxelizing the mesh...");
       std::vector<std::vector<double> > voxels;
       sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, object.poses[i], 0.02, voxels, false);
+
       for(size_t j = 0; j < voxels.size(); ++j)
         object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
+      ROS_INFO("[cspace] Done voxelizing...");
     }
     else
       ROS_WARN("[cspace] Collision objects of type %d are not yet supported.", object.shapes[i].type);
@@ -2223,6 +2226,30 @@ void PR2CollisionSpace::addCollisionObjectMesh(const std::vector<geometry_msgs::
   obj.shapes[0].vertices = vertices;
   object_map_[obj.id] = obj;
   addCollisionObject(obj); 
+}
+
+bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name)
+{
+  arm_navigation_msgs::CollisionObject obj;
+  std::vector<geometry_msgs::Point> vertices;
+  std::vector<int> triangles;
+  obj.header.frame_id = grid_->getReferenceFrame();
+  obj.id = name;
+  obj.operation.operation = arm_navigation_msgs::CollisionObjectOperation::ADD;
+  obj.shapes.resize(1);
+  obj.poses.push_back(pose);
+  obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
+  object_map_[obj.id] = obj;
+  if(!leatherman::getMeshComponentsFromResource(mesh_resource, triangles, vertices))
+  {
+    ROS_ERROR("Failed to get mesh.");
+    return false;
+  }
+  obj.shapes[0].triangles = triangles;
+  obj.shapes[0].vertices = vertices;
+
+  addCollisionObject(obj); 
+  return true;
 }
 
 }

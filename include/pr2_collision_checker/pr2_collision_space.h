@@ -236,7 +236,8 @@ class PR2CollisionSpace
     visualization_msgs::MarkerArray getVisualization(std::string type, std::string ns, int id);
 
     void addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name);
-    
+    bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name);
+
   private:
 
     /** @brief arm model used by planner */
