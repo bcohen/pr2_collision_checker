@@ -245,6 +245,8 @@ class PR2CollisionSpace
 
     void printRobotState(std::vector<double> &rangles, std::vector<double> &langles,    BodyPose &body_pos, std::string text);
 
+    void visualizeResult(bool enable){visualize_result_ = enable; };
+
   private:
 
     /** @brief arm model used by planner */
@@ -253,8 +255,9 @@ class PR2CollisionSpace
     /** @brief occupancy grid used by planner */
     sbpl_arm_planner::OccupancyGrid* grid_;
 
-    // just for TAR project
+    /** Just for TAR project **/
     PViz pviz_;
+    bool visualize_result_;
 
     std::string cspace_log_;
 

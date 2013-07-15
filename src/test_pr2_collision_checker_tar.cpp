@@ -136,6 +136,7 @@ pr2_collision_checker::Group getGroup(geometry_msgs::Pose &pose, std::string nam
     g.spheres[i].radius = SPHERE_RADIUS;
     g.spheres[i].radius_c = SPHERE_RADIUS / 0.02;
   }
+  return g;
 }
 
 int main(int argc, char **argv)
@@ -208,7 +209,7 @@ int main(int argc, char **argv)
   //else
   //  cspace->printSphereGroups();
 
-  int debug_code=200;
+  //int debug_code=200;
   double dist=100.0;
   visualization_msgs::MarkerArray ma; 
   std::vector<double> rangles(7,0), langles(7,0);
