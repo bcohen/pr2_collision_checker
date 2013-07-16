@@ -2081,7 +2081,7 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
       v2 = g2->f * g2->spheres[j].v;
       d = leatherman::distance(v1, v2);
 
-      if(d <= /*max(g1->spheres[i].radius, g2->spheres[j].radius)*/g1->spheres[i].radius + g2->spheres[j].radius)
+      if(d <= g1->spheres[i].radius + g2->spheres[j].radius)
       {
         if(d < dist)
           dist = d;
@@ -2094,22 +2094,6 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
   }
   return true;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
@@ -2200,6 +2184,9 @@ bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std
   // for all robot links except arms
   for(size_t i = 0; i < all_g_.size(); ++i)
   {
+    if(all_g_[i].name.compare("right_gripper") == 0 && !gripper)
+      continue;
+
     getCollisionSpheres(langles, rangles, pose, all_g_[i].name, lspheres);
     
     if(lspheres.empty())
