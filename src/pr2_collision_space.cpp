@@ -1164,7 +1164,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
 
   // base
   getVoxelsInGroup(base_g_.f, base_g_);
-  ROS_INFO("[cc] Checking base...");
+  //ROS_INFO("[cc] Checking base...");
   for(size_t i = 0; i < base_g_.spheres.size(); ++i)
   {
     // check bounds
@@ -1188,7 +1188,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
   // lower torso
   torso_lower_g_.f = base_g_.f;
   getVoxelsInGroup(base_g_.f, torso_lower_g_);
-  ROS_INFO("[cc] Checking torso...");
+  //ROS_INFO("[cc] Checking torso...");
   for(size_t i = 0; i < torso_lower_g_.spheres.size(); ++i)
   {
     // check bounds
@@ -1208,7 +1208,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
     if(dist > dist_temp)
       dist = dist_temp;
   }
-  ROS_INFO("[cc] Base & torso are valid.");
+  //ROS_INFO("[cc] Base & torso are valid.");
   return true;
 }
 
@@ -1216,7 +1216,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
 {
   double dist_temp = 100.0;
 
-  ROS_INFO("[cc] Checking Torso. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f torso_kdl_num: %d",x,y,theta,torso,torso_upper_g_.kdl_segment);
+  //ROS_INFO("[cc] Checking Torso. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f torso_kdl_num: %d",x,y,theta,torso,torso_upper_g_.kdl_segment);
   if(!computeFullBodyKinematics(x,y,theta,torso, torso_upper_g_.kdl_segment, torso_upper_g_.f))
   {
     ROS_ERROR("[cc] Failed to compute FK for torso.");
@@ -1224,7 +1224,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
   }
 
   // upper torso
-  ROS_INFO("[cc] Checking upper_torso-world.");
+  //ROS_INFO("[cc] Checking upper_torso-world.");
   getVoxelsInGroup(torso_upper_g_.f, torso_upper_g_);
   for(size_t i = 0; i < torso_upper_g_.spheres.size(); ++i)
   {
@@ -1246,7 +1246,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
   // tilt laser
-  ROS_INFO("[cc] Checking tilt_laser-world.");
+  //ROS_INFO("[cc] Checking tilt_laser-world.");
   tilt_laser_g_.f = torso_upper_g_.f;
   getVoxelsInGroup(tilt_laser_g_.f, tilt_laser_g_);
   for(size_t i = 0; i < tilt_laser_g_.spheres.size(); ++i)
@@ -1269,7 +1269,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
   // turrets
-  ROS_INFO("[cc] Checking turrets-world.");
+  //ROS_INFO("[cc] Checking turrets-world.");
   turrets_g_.f = torso_upper_g_.f;
   getVoxelsInGroup(turrets_g_.f, turrets_g_);
   for(size_t i = 0; i < turrets_g_.spheres.size(); ++i)
@@ -1292,7 +1292,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
 
-  ROS_INFO("[cc] Torso is valid.");
+  //ROS_INFO("[cc] Torso is valid.");
   return true;
 }
 
@@ -1308,7 +1308,7 @@ bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double tor
   }
 
   // head
-  ROS_INFO("[cc] Checking head-world.");
+  //ROS_INFO("[cc] Checking head-world.");
   getVoxelsInGroup(head_g_.f, head_g_);
   for(size_t i = 0; i < head_g_.spheres.size(); ++i)
   {
@@ -2108,7 +2108,7 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
       v2 = g2->f * g2->spheres[j].v;
       d = leatherman::distance(v1, v2);
 
-      if(d <= max(g1->spheres[i].radius, g2->spheres[j].radius))
+      if(d <= g1->spheres[i].radius + g2->spheres[j].radius)
       {
         if(d < dist)
           dist = d;
@@ -2211,6 +2211,9 @@ bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std
   // for all robot links except arms
   for(size_t i = 0; i < all_g_.size(); ++i)
   {
+    if(all_g_[i].name.compare("right_gripper") == 0 && !gripper)
+      continue;
+
     getCollisionSpheres(langles, rangles, pose, all_g_[i].name, lspheres);
     
     if(lspheres.empty())
