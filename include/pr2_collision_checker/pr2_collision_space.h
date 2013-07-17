@@ -238,6 +238,7 @@ class PR2CollisionSpace
 
     void addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name);
     bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name);
+    bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Vector3 &scale, geometry_msgs::Pose &pose, std::string name);
 
     visualization_msgs::MarkerArray getGroupVisualization(Group &group, std::string ns, int id);
 

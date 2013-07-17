@@ -30,6 +30,7 @@
 
 #include <pr2_collision_checker/pr2_collision_space.h>
 #include <leatherman/viz.h>
+#include <leatherman/print.h>
 
 #define SMALL_NUM  0.00000001     // to avoid division overflow
 
@@ -674,10 +675,36 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
     else if(object.shapes[i].type == arm_navigation_msgs::Shape::MESH)
     {
       ROS_INFO("[cc] Voxelizing the mesh...(%s)", object.id.c_str());
-      sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, object.poses[i], 0.02, voxels, false);
+      leatherman::printPoseMsg(object.poses[i], "VOXELIZING_POSE");
+      sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles/*, object.poses[i]*/, 0.02, voxels, false);
+
+
+      // transform voxels in mesh frame into the world frame
+      tf::Vector3 vox;
+      tf::Vector3 v(object.poses[i].position.x, object.poses[i].position.y, object.poses[i].position.z);
+      tf::Transform m(tf::Quaternion(object.poses[i].orientation.x, object.poses[i].orientation.y, object.poses[i].orientation.z, object.poses[i].orientation.w));
+      for(size_t j = 0; j < voxels.size(); ++j)
+      {
+        if(voxels[j].size() < 3)
+          ROS_ERROR("WTF");
+
+        vox.setX(voxels[j][0]);
+        vox.setY(voxels[j][1]);
+        vox.setZ(voxels[j][2]);
+        vox = m * vox;
+        vox += v;
+
+        voxels[j][0] = vox.x();
+        voxels[j][1] = vox.y();
+        voxels[j][2] = vox.z();
+      }
 
       for(size_t j = 0; j < voxels.size(); ++j)
+      {
         object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
+        ROS_DEBUG("[%d] xyz: %0.3f %0.3f %0.3f", int(j), voxels[j][0], voxels[j][1], voxels[j][2]);
+      }
+      pviz_.visualizeSpheres(voxels, 165, "VOXELS", 0.01);
       ROS_INFO("[cc] Done voxelizing...");
     }
     else
@@ -2274,7 +2301,7 @@ visualization_msgs::MarkerArray PR2CollisionSpace::getVisualization(std::string 
     {
       std::vector<double> hue(iter->second.shapes.size(), 94);
       ma = viz::getCollisionObjectMarkerArray(iter->second, hue, iter->second.id, 0);
-      ROS_DEBUG("Got collision object marker array with %d markers in it.", int(ma.markers.size()));
+      ROS_INFO("Got collision object marker array with %d markers in it.", int(ma.markers.size()));
     }
   }
   else
@@ -2300,6 +2327,13 @@ void PR2CollisionSpace::addCollisionObjectMesh(const std::vector<geometry_msgs::
 
 bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name)
 {
+  geometry_msgs::Vector3 scale;
+  scale.x = 1.0; scale.y = 1.0; scale.z = 1.0;
+  return addCollisionObjectMesh(mesh_resource, scale, pose, name);
+}
+
+bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Vector3 &scale, geometry_msgs::Pose &pose, std::string name)
+{
   arm_navigation_msgs::CollisionObject obj;
   obj.header.frame_id = grid_->getReferenceFrame();
   if(name.empty())
@@ -2311,18 +2345,25 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   obj.poses.push_back(pose);
   obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
   object_map_[obj.id] = obj;
-  if(!leatherman::getMeshComponentsFromResource(mesh_resource, obj.shapes[0].triangles, obj.shapes[0].vertices))
+  if(!leatherman::getMeshComponentsFromResource(mesh_resource, scale, obj.shapes[0].triangles, obj.shapes[0].vertices))
   {
     ROS_ERROR("[cc] Failed to get triangles & indeces from the mesh resource.");
     return false;
   }
+  geometry_msgs::PoseStamped ps;
+  ps.header.frame_id = "map";
+  ps.pose = pose;
+  visualization_msgs::Marker m = viz::getSpheresMarker(obj.shapes[0].vertices, 0.01, 86, "/map", "object_vertices", 0);
+  pviz_.publishMarker(m);
+  m = viz::getMeshMarker(ps, mesh_resource, 230, "object_mesh", 0);
+  pviz_.publishMarker(m);
   ROS_INFO("[cc] Retrieved '%s' mesh with %d triangles and %d vertices. (%s)", name.c_str(), int(obj.shapes[0].triangles.size()), int(obj.shapes[0].vertices.size()), mesh_resource.c_str());
   addCollisionObject(obj);
   
   visualization_msgs::MarkerArray ma;
-  ma  = getVisualization("collision_objects", "collision_objects", 0);
-  pviz_.publishMarkerArray(ma);
   ma  = getVisualization("distance_field", "distance_field", 0);
+  pviz_.publishMarkerArray(ma);
+  ma  = getVisualization("collision_objects", "collision_objects", 0);
   pviz_.publishMarkerArray(ma);
   ma  = getVisualization("bounds", "bounds", 0);
   pviz_.publishMarkerArray(ma);
