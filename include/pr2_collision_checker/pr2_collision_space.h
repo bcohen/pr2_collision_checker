@@ -44,6 +44,7 @@
 #include <tf_conversions/tf_kdl.h>
 #include <leatherman/bresenham.h>
 #include <leatherman/utils.h>
+#include <leatherman/file.h>
 #include <pr2_collision_checker/sbpl_arm_model.h>
 #include <pr2_collision_checker/sbpl_arm_planning_error_codes.h>
 #include <sbpl_manipulation_components/occupancy_grid.h>
@@ -247,6 +248,10 @@ class PR2CollisionSpace
     void printRobotState(std::vector<double> &rangles, std::vector<double> &langles,    BodyPose &body_pos, std::string text);
 
     void visualizeResult(bool enable){visualize_result_ = enable; };
+
+    bool writeObjectVoxelsToFile(std::string filename);
+
+    bool getObjectVoxelsFromFile(std::string filename);
 
   private:
 

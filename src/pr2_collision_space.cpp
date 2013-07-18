@@ -2358,7 +2358,7 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   ps.pose = pose;
   visualization_msgs::Marker m = viz::getSpheresMarker(obj.shapes[0].vertices, 0.01, 86, "/map", "object_vertices", 0);
   pviz_.publishMarker(m);
-  m = viz::getMeshMarker(ps, mesh_resource, 230, "object_mesh", 0);
+  m = viz::getMeshMarker(ps, mesh_resource, 230, "object_mesh"+name, 0);
   pviz_.publishMarker(m);
   ROS_INFO("[cc] Retrieved '%s' mesh with %d triangles and %d vertices. (%s)", name.c_str(), int(obj.shapes[0].triangles.size()), int(obj.shapes[0].vertices.size()), mesh_resource.c_str());
   addCollisionObject(obj);
@@ -2379,6 +2379,42 @@ void PR2CollisionSpace::printRobotState(std::vector<double> &rangles, std::vecto
   ROS_INFO("     x: %0.3f  y: % 0.3f  z: %0.3f yaw: % 0.3f", body_pos.x, body_pos.y, body_pos.z, body_pos.      theta);
   ROS_INFO(" right: % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f", rangles[0], rangles[1], rangles[2],      rangles[3], rangles[4], rangles[5], rangles[6]);
   ROS_INFO("  left: % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f % 0.3f", langles[0], langles[1], langles[2],      langles[3], langles[4], langles[5], langles[6]);
+}
+
+bool PR2CollisionSpace::writeObjectVoxelsToFile(std::string filename)
+{
+  for(std::map<std::string, std::vector<Eigen::Vector3d> >::const_iterator iter = object_voxel_map_.begin(); iter != object_voxel_map_.end(); ++iter)
+  {
+    if(!leatherman::writePointsToFile(filename, iter->second))
+    {
+      ROS_ERROR("[cc] Failed to write object voxels for '%s' to file '%s'.", iter->first.c_str(), filename.c_str());
+      return false;
+    }
+    ROS_INFO("[cc] Wrote %d points to file.", int(iter->second.size()));
+  }
+  return true;
+}
+
+bool PR2CollisionSpace::getObjectVoxelsFromFile(std::string filename)
+{
+  std::vector<Eigen::Vector3d> pts;
+  if(!leatherman::readPointsInFile(filename, pts))
+  {
+    ROS_ERROR("[cc] Failed to read object voxels from file '%s'.", filename.c_str());
+    return false;
+  }
+  ROS_INFO("[cc] Retrieved %d points from file '%s'.", int(pts.size()), filename.c_str());
+
+  object_voxel_map_["scene"] = pts;
+  grid_->addPointsToField(object_voxel_map_["scene"]);
+
+  visualization_msgs::MarkerArray ma;
+  ma  = getVisualization("distance_field", "distance_field", 0);
+  pviz_.publishMarkerArray(ma);
+  ma  = getVisualization("bounds", "bounds", 0);
+  pviz_.publishMarkerArray(ma);
+
+  return true;
 }
 
 }
