@@ -2354,7 +2354,7 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
     return false;
   }
   geometry_msgs::PoseStamped ps;
-  ps.header.frame_id = "map";
+  ps.header.frame_id = "/map";
   ps.pose = pose;
   visualization_msgs::Marker m = viz::getSpheresMarker(obj.shapes[0].vertices, 0.01, 86, "/map", "object_vertices", 0);
   pviz_.publishMarker(m);
@@ -2365,8 +2365,6 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   
   visualization_msgs::MarkerArray ma;
   ma  = getVisualization("distance_field", "distance_field", 0);
-  pviz_.publishMarkerArray(ma);
-  ma  = getVisualization("collision_objects", "collision_objects", 0);
   pviz_.publishMarkerArray(ma);
   ma  = getVisualization("bounds", "bounds", 0);
   pviz_.publishMarkerArray(ma);
