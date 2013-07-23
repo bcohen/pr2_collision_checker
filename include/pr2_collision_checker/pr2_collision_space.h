@@ -253,6 +253,8 @@ class PR2CollisionSpace
 
     bool getObjectVoxelsFromFile(std::string filename);
 
+    void resetWorld();
+
   private:
 
     /** @brief arm model used by planner */

@@ -68,12 +68,12 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
   FILE* rarm_fp=NULL;
   FILE* larm_fp=NULL;
 
-  ROS_INFO("[pr2cc] Opening the arm config files to instantiate the arms."); fflush(stdout);
+  ROS_INFO("[cc] Opening the arm config files to instantiate the arms."); fflush(stdout);
   // create the left & right arm models
   if((rarm_fp=fopen(rarm_filename.c_str(),"r")) == NULL)
-    ROS_ERROR("[pr2cc] Failed to open right arm description file.");
+    ROS_ERROR("[cc] Failed to open right arm description file.");
   if((larm_fp=fopen(larm_filename.c_str(),"r")) == NULL)
-    ROS_ERROR("[pr2cc] Failed to open left arm description file.");
+    ROS_ERROR("[cc] Failed to open left arm description file.");
   
   arm_[0] = new sbpl_arm_planner::SBPLArmModel(rarm_fp);
   arm_[1] = new sbpl_arm_planner::SBPLArmModel(larm_fp);
@@ -81,16 +81,14 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
   arm_[1]->setResolution(resolution);
   arm_[0]->setDebugLogName("rarm");
   arm_[1]->setDebugLogName("larm");
-  ROS_INFO("Initialized Arms");
+  ROS_DEBUG("Initialized Arms");
 
   if(!arm_[0]->initKDLChainFromParamServer() || !arm_[1]->initKDLChainFromParamServer())
   {
-    ROS_ERROR("[pr2cc] Failed to initialize arm models.");
+    ROS_ERROR("[cc] Failed to initialize arm models.");
   }
   fclose(rarm_fp);
   fclose(larm_fp);
-
-  ROS_INFO("[pr2cc] Creating the occupancy grid."); fflush(stdout);
 
   // create the occupancy grid
   grid_ = new sbpl_arm_planner::OccupancyGrid(dims[0], dims[1], dims[2], resolution, origin[0], origin[1], origin[2]);
@@ -104,7 +102,7 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
   inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
-  ROS_INFO("[cc] Finished constructor.");
+  ROS_DEBUG("[cc] Finished constructor.");
 }
 
 PR2CollisionSpace::~PR2CollisionSpace()
@@ -675,9 +673,7 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
     else if(object.shapes[i].type == arm_navigation_msgs::Shape::MESH)
     {
       ROS_INFO("[cc] Voxelizing the mesh...(%s)", object.id.c_str());
-      leatherman::printPoseMsg(object.poses[i], "VOXELIZING_POSE");
       sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles/*, object.poses[i]*/, 0.02, voxels, false);
-
 
       // transform voxels in mesh frame into the world frame
       tf::Vector3 vox;
@@ -704,7 +700,7 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
         object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
         ROS_DEBUG("[%d] xyz: %0.3f %0.3f %0.3f", int(j), voxels[j][0], voxels[j][1], voxels[j][2]);
       }
-      pviz_.visualizeSpheres(voxels, 165, "VOXELS", 0.01);
+      //pviz_.visualizeSpheres(voxels, 165, "VOXELS", 0.01);
       ROS_INFO("[cc] Done voxelizing...");
     }
     else
@@ -1070,10 +1066,9 @@ bool PR2CollisionSpace::initFullBodyKinematics()
   fk_solver_ = new KDL::ChainFkSolverPos_recursive(full_body_chain_);
   jnt_array_.resize(full_body_chain_.getNrOfJoints());
 
-  ROS_INFO("[cc] The full body kinematics chain has %d segments & %d joints.", full_body_chain_.getNrOfSegments(), full_body_chain_.getNrOfJoints());
-  ROS_INFO("[cc] root: %s tip: %s.", full_body_chain_root_name_.c_str(), full_body_chain_tip_name_.c_str());
-
-  printKDLChain("full body chain", full_body_chain_);
+  ROS_DEBUG("[cc] The full body kinematics chain has %d segments & %d joints.", full_body_chain_.getNrOfSegments(), full_body_chain_.getNrOfJoints());
+  ROS_DEBUG("[cc] root: %s tip: %s.", full_body_chain_root_name_.c_str(), full_body_chain_tip_name_.c_str());
+  //printKDLChain("full body chain", full_body_chain_);
   return true;
 }
 
@@ -2348,21 +2343,18 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   obj.poses.push_back(pose);
   obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
   object_map_[obj.id] = obj;
+ 
+  // using geometric shapes 
   if(!leatherman::getMeshComponentsFromResource(mesh_resource, scale, obj.shapes[0].triangles, obj.shapes[0].vertices))
   {
     ROS_ERROR("[cc] Failed to get triangles & indeces from the mesh resource.");
     return false;
   }
-  geometry_msgs::PoseStamped ps;
-  ps.header.frame_id = "/map";
-  ps.pose = pose;
-  visualization_msgs::Marker m = viz::getSpheresMarker(obj.shapes[0].vertices, 0.01, 86, "/map", "object_vertices", 0);
-  pviz_.publishMarker(m);
-  m = viz::getMeshMarker(ps, mesh_resource, 230, "object_mesh"+name, 0);
-  pviz_.publishMarker(m);
   ROS_INFO("[cc] Retrieved '%s' mesh with %d triangles and %d vertices. (%s)", name.c_str(), int(obj.shapes[0].triangles.size()), int(obj.shapes[0].vertices.size()), mesh_resource.c_str());
+
   addCollisionObject(obj);
   
+  // visualizations...remove later
   visualization_msgs::MarkerArray ma;
   ma  = getVisualization("distance_field", "distance_field", 0);
   pviz_.publishMarkerArray(ma);
@@ -2413,6 +2405,13 @@ bool PR2CollisionSpace::getObjectVoxelsFromFile(std::string filename)
   pviz_.publishMarkerArray(ma);
 
   return true;
+}
+
+void PR2CollisionSpace::resetWorld()
+{
+  ROS_INFO("[cc] Resetting the occupancy grid and clearing all collision objects.");
+  removeAllCollisionObjects();
+  grid_->reset();
 }
 
 }
