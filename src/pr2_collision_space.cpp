@@ -673,7 +673,12 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
     else if(object.shapes[i].type == arm_navigation_msgs::Shape::MESH)
     {
       ROS_INFO("[cc] Voxelizing the mesh...(%s)", object.id.c_str());
-      sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles/*, object.poses[i]*/, 0.02, voxels, false);
+      //sbpl::Voxelizer::voxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles/*, object.poses[i]*/, 0.02, voxels, false);
+     
+      ros::Time t_start_voxel = ros::Time::now();
+      sbpl::VoxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, 0.02, voxels);
+      ros::Time t_end_voxel = ros::Time::now();
+      ROS_WARN("[cc] Voxelizing the mesh into %d voxels took %0.3f seconds .(%s)", int(voxels.size()), object.id.c_str(), ros::Duration(t_end_voxel-t_start_voxel).toSec());
 
       // transform voxels in mesh frame into the world frame
       tf::Vector3 vox;
