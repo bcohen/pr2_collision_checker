@@ -2261,6 +2261,7 @@ void PR2CollisionSpace::visualizeGroup(Group &group, std::string ns, int id)
 
 void PR2CollisionSpace::visualizeRobotCollisionModel(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id)
 {
+  pviz_.deleteVisualizations(ns, 200);
   visualization_msgs::MarkerArray ma = getCollisionModelVisualization(rangles, langles, body_pos, ns, id);
   pviz_.publishMarkerArray(ma);
 }
