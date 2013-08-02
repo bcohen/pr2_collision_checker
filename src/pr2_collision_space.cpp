@@ -708,7 +708,7 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
         object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
         ROS_DEBUG("[%d] xyz: %0.3f %0.3f %0.3f", int(j), voxels[j][0], voxels[j][1], voxels[j][2]);
       }
-      //pviz_.visualizeSpheres(voxels, 165, "voxels-"+object.id, 0.01);
+      //pviz_.visualizeSpheres(voxels, 180, "voxels-"+object.id, 0.01);
       ROS_INFO("[cc] Done voxelizing...");
     }
     else
@@ -2379,12 +2379,14 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
 
   addCollisionObject(obj);
   
-  // visualizations...remove later
-  visualization_msgs::MarkerArray ma;
-  ma  = getVisualization("distance_field", "distance_field", 0);
-  pviz_.publishMarkerArray(ma);
-  ma  = getVisualization("bounds", "bounds", 0);
-  pviz_.publishMarkerArray(ma);
+  if(visualize_result_)
+  {
+    visualization_msgs::MarkerArray ma;
+    ma  = getVisualization("distance_field", "distance_field", 0);
+    pviz_.publishMarkerArray(ma);
+    ma  = getVisualization("bounds", "bounds", 0);
+    pviz_.publishMarkerArray(ma);
+  }
   return true;
 }
 
@@ -2422,12 +2424,15 @@ bool PR2CollisionSpace::getObjectVoxelsFromFile(std::string filename)
 
   object_voxel_map_["scene"] = pts;
   grid_->addPointsToField(object_voxel_map_["scene"]);
-
-  visualization_msgs::MarkerArray ma;
-  ma  = getVisualization("distance_field", "distance_field", 0);
-  pviz_.publishMarkerArray(ma);
-  ma  = getVisualization("bounds", "bounds", 0);
-  pviz_.publishMarkerArray(ma);
+ 
+  if(visualize_result_)
+  {
+    visualization_msgs::MarkerArray ma;
+    ma  = getVisualization("distance_field", "distance_field", 0);
+    pviz_.publishMarkerArray(ma);
+    ma  = getVisualization("bounds", "bounds", 0);
+    pviz_.publishMarkerArray(ma);
+  }
 
   return true;
 }
