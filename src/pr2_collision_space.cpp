@@ -2130,9 +2130,6 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
   double d = 100.0; int debug_code=100;
   dist = 100.0;
 
-  if(verbose)
-    printRobotState(rangles, langles, pose, "cc");
-
   // arms-world
   if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code, false))
   {
@@ -2154,7 +2151,7 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
   dist = min(dist,d);
 
   if(verbose)
-    ROS_INFO("[cc] Robot-world No collision  (dist: %0.3fm)", dist);
+    ROS_INFO("[cc] Robot-world SAFE  (dist: %0.3fm)", dist);
   if(visualize_result_)
     pviz_.visualizeText(0.4, 0.0, 3.0, 0.2, "robot-world: no", 10, "robot-world", 0);
   
@@ -2259,6 +2256,12 @@ visualization_msgs::MarkerArray PR2CollisionSpace::getGroupVisualization(Group &
 void PR2CollisionSpace::visualizeGroup(Group &group, std::string ns, int id)
 {
   visualization_msgs::MarkerArray ma = getGroupVisualization(group, ns, id);
+  pviz_.publishMarkerArray(ma);
+}
+
+void PR2CollisionSpace::visualizeRobotCollisionModel(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id)
+{
+  visualization_msgs::MarkerArray ma = getCollisionModelVisualization(rangles, langles, body_pos, ns, id);
   pviz_.publishMarkerArray(ma);
 }
 

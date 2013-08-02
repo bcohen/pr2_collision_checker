@@ -233,21 +233,19 @@ class PR2CollisionSpace
     bool checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
     bool checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
 
-    visualization_msgs::MarkerArray getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id);
-
-    visualization_msgs::MarkerArray getVisualization(std::string type, std::string ns, int id);
-
     void addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name);
     bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name);
     bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Vector3 &scale, geometry_msgs::Pose &pose, std::string name);
 
-    visualization_msgs::MarkerArray getGroupVisualization(Group &group, std::string ns, int id);
-
+    // Visualizations
+    void visualizeResult(bool enable){visualize_result_ = enable; };
     void visualizeGroup(Group &group, std::string ns, int id);
+    void visualizeRobotCollisionModel(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id);
+    visualization_msgs::MarkerArray getVisualization(std::string type, std::string ns, int id);
+    visualization_msgs::MarkerArray getGroupVisualization(Group &group, std::string ns, int id);
+    visualization_msgs::MarkerArray getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id);
 
     void printRobotState(std::vector<double> &rangles, std::vector<double> &langles,    BodyPose &body_pos, std::string text);
-
-    void visualizeResult(bool enable){visualize_result_ = enable; };
 
     bool writeObjectVoxelsToFile(std::string filename);
 
