@@ -30,6 +30,7 @@
 
 #include <pr2_collision_checker/pr2_collision_space.h>
 #include <leatherman/viz.h>
+#include <leatherman/file.h>
 #include <leatherman/print.h>
 
 #define SMALL_NUM  0.00000001     // to avoid division overflow
@@ -109,10 +110,12 @@ PR2CollisionSpace::~PR2CollisionSpace()
 {
   if(delete_objects_)
   {
+    ROS_ERROR("[cc] Deleting objects!");
     delete arm_[0];
     delete arm_[1];
     delete grid_;
   }
+  delete fk_solver_;
 }
 
 bool PR2CollisionSpace::init()
@@ -678,7 +681,7 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
       ros::Time t_start_voxel = ros::Time::now();
       sbpl::VoxelizeMesh(object.shapes[i].vertices, object.shapes[i].triangles, 0.02, voxels);
       ros::Time t_end_voxel = ros::Time::now();
-      ROS_WARN("[cc] Voxelizing the mesh into %d voxels took %0.3f seconds .(%s)", int(voxels.size()), object.id.c_str(), ros::Duration(t_end_voxel-t_start_voxel).toSec());
+      ROS_WARN("[cc] Voxelizing the mesh into %d voxels took %0.3f seconds .(%s)", int(voxels.size()), ros::Duration(t_end_voxel-t_start_voxel).toSec(), object.id.c_str());
 
       // transform voxels in mesh frame into the world frame
       tf::Vector3 vox;
@@ -705,7 +708,7 @@ void PR2CollisionSpace::addCollisionObject(const arm_navigation_msgs::CollisionO
         object_voxel_map_[object.id].push_back(Eigen::Vector3d(voxels[j][0], voxels[j][1], voxels[j][2]));
         ROS_DEBUG("[%d] xyz: %0.3f %0.3f %0.3f", int(j), voxels[j][0], voxels[j][1], voxels[j][2]);
       }
-      //pviz_.visualizeSpheres(voxels, 165, "VOXELS", 0.01);
+      //pviz_.visualizeSpheres(voxels, 165, "voxels-"+object.id, 0.01);
       ROS_INFO("[cc] Done voxelizing...");
     }
     else
@@ -2348,14 +2351,31 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   obj.poses.push_back(pose);
   obj.shapes[0].type = arm_navigation_msgs::Shape::MESH;
   object_map_[obj.id] = obj;
- 
+
+  // get STL version of file
+  std::string mesh_type = leatherman::getExtension(mesh_resource);
+  std::string mesh_resource2 = mesh_resource;
+  if(!mesh_type.empty())
+  {
+    if(mesh_type.compare("dae") == 0)
+      mesh_resource2 = leatherman::replaceExtension(mesh_resource, "stl");
+    ROS_WARN("[cc] Collada file found. Will try to use the STL version instead. (%s)", name.c_str());
+    ROS_WARN("[cc] STL filename: %s", mesh_resource2.c_str());
+
+    double collada_scale = leatherman::getColladaFileScale(mesh_resource);
+    scale.x = collada_scale * scale.x;
+    scale.y = collada_scale * scale.y;
+    scale.z = collada_scale * scale.z;
+    ROS_WARN("[cc] Collada scale value: %0.3fm. Rescaled scale: {%0.3f %0.3f %0.3f}", collada_scale, scale.x, scale.y, scale.z);
+  }
+
   // using geometric shapes 
-  if(!leatherman::getMeshComponentsFromResource(mesh_resource, scale, obj.shapes[0].triangles, obj.shapes[0].vertices))
+  if(!leatherman::getMeshComponentsFromResource(mesh_resource2, scale, obj.shapes[0].triangles, obj.shapes[0].vertices))
   {
     ROS_ERROR("[cc] Failed to get triangles & indeces from the mesh resource.");
     return false;
   }
-  ROS_INFO("[cc] Retrieved '%s' mesh with %d triangles and %d vertices. (%s)", name.c_str(), int(obj.shapes[0].triangles.size()), int(obj.shapes[0].vertices.size()), mesh_resource.c_str());
+  ROS_INFO("[cc] Retrieved '%s' mesh with %d triangles and %d vertices. (%s)", name.c_str(), int(obj.shapes[0].triangles.size()), int(obj.shapes[0].vertices.size()), mesh_resource2.c_str());
 
   addCollisionObject(obj);
   
