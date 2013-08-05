@@ -190,8 +190,10 @@ bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, c
     dist = min(dist_temp,dist);
   }
 
+  /*
   if(verbose)
     ROS_INFO("[Both]  dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
+  */
 
   return true;
 }
@@ -231,6 +233,10 @@ bool PR2CollisionSpace::checkCollision(const std::vector<double> &angles, BodyPo
       if(verbose)
         ROS_INFO("  Link %d: {%d %d %d} -> {%d %d %d} with radius %0.2f is in collision. [arm: %d]",i,jnts[i][0],jnts[i][1],jnts[i][2],jnts[i+1][0],jnts[i+1][1],jnts[i+1][2], arm_[i_arm]->getLinkRadius(i), int(i_arm));
       dist = dist_temp;
+
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      temp_.name = arm_side_names[i_arm] + boost::lexical_cast<std::string>(i);
+      robot_world_col_.push_back(temp_);
       return false;
     }
 
@@ -510,6 +516,9 @@ double PR2CollisionSpace::isValidLineSegment(const std::vector<int> a, const std
     cell_val = grid_->getDistance(nXYZ[0],nXYZ[1],nXYZ[2]);
     if(cell_val <= radius)
     {
+      temp_.voxel[0] = nXYZ[0]; temp_.voxel[1] = nXYZ[1]; temp_.voxel[2] = nXYZ[2];
+      temp_.radius = radius;
+
       if(pTestedCells == NULL)
         return cell_val;   //return 0
       else
@@ -1167,7 +1176,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
 
   // base
   getVoxelsInGroup(base_g_.f, base_g_);
-  //ROS_INFO("[cc] Checking base...");
+  ROS_DEBUG("[cc] Checking base...");
   for(size_t i = 0; i < base_g_.spheres.size(); ++i)
   {
     // check bounds
@@ -1181,6 +1190,10 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
     if((dist_temp = grid_->getDistance(base_g_.spheres[i].voxel[0], base_g_.spheres[i].voxel[1], base_g_.spheres[i].voxel[2])) <= base_g_.spheres[i].radius)
     {
       dist = dist_temp;
+      
+      temp_ = base_g_.spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      robot_world_col_.push_back(temp_);
       return false;
     }
     
@@ -1191,7 +1204,7 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
   // lower torso
   torso_lower_g_.f = base_g_.f;
   getVoxelsInGroup(base_g_.f, torso_lower_g_);
-  //ROS_INFO("[cc] Checking torso...");
+  ROS_DEBUG("[cc] Checking torso...");
   for(size_t i = 0; i < torso_lower_g_.spheres.size(); ++i)
   {
     // check bounds
@@ -1205,13 +1218,16 @@ bool PR2CollisionSpace::isBaseValid(double x, double y, double theta, double &di
     if((dist_temp = grid_->getDistance(torso_lower_g_.spheres[i].voxel[0], torso_lower_g_.spheres[i].voxel[1], torso_lower_g_.spheres[i].voxel[2])) <= torso_lower_g_.spheres[i].radius)
     {
       dist = dist_temp;
+      temp_ = torso_lower_g_.spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      robot_world_col_.push_back(temp_);
       return false;
     }
     
     if(dist > dist_temp)
       dist = dist_temp;
   }
-  //ROS_INFO("[cc] Base & torso are valid.");
+  ROS_DEBUG("[cc] Base & torso are valid.");
   return true;
 }
 
@@ -1227,7 +1243,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
   }
 
   // upper torso
-  //ROS_INFO("[cc] Checking upper_torso-world.");
+  ROS_DEBUG("[cc] Checking upper_torso-world.");
   getVoxelsInGroup(torso_upper_g_.f, torso_upper_g_);
   for(size_t i = 0; i < torso_upper_g_.spheres.size(); ++i)
   {
@@ -1242,6 +1258,9 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
     if((dist_temp = grid_->getDistance(torso_upper_g_.spheres[i].voxel[0], torso_upper_g_.spheres[i].voxel[1], torso_upper_g_.spheres[i].voxel[2])) <= torso_upper_g_.spheres[i].radius)
     {
       dist = dist_temp;
+      temp_ = torso_upper_g_.spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      robot_world_col_.push_back(temp_);
       return false;
     }
     
@@ -1249,7 +1268,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
   // tilt laser
-  //ROS_INFO("[cc] Checking tilt_laser-world.");
+  ROS_DEBUG("[cc] Checking tilt_laser-world.");
   tilt_laser_g_.f = torso_upper_g_.f;
   getVoxelsInGroup(tilt_laser_g_.f, tilt_laser_g_);
   for(size_t i = 0; i < tilt_laser_g_.spheres.size(); ++i)
@@ -1265,6 +1284,9 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
     if((dist_temp = grid_->getDistance(tilt_laser_g_.spheres[i].voxel[0], tilt_laser_g_.spheres[i].voxel[1], tilt_laser_g_.spheres[i].voxel[2])) <= tilt_laser_g_.spheres[i].radius)
     {
       dist = dist_temp;
+      temp_ = tilt_laser_g_.spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      robot_world_col_.push_back(temp_);
       return false;
     }
     
@@ -1272,7 +1294,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
   // turrets
-  //ROS_INFO("[cc] Checking turrets-world.");
+  ROS_DEBUG("[cc] Checking turrets-world.");
   turrets_g_.f = torso_upper_g_.f;
   getVoxelsInGroup(turrets_g_.f, turrets_g_);
   for(size_t i = 0; i < turrets_g_.spheres.size(); ++i)
@@ -1288,6 +1310,9 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
     if((dist_temp = grid_->getDistance(turrets_g_.spheres[i].voxel[0], turrets_g_.spheres[i].voxel[1], turrets_g_.spheres[i].voxel[2])) <= turrets_g_.spheres[i].radius)
     {
       dist = dist_temp;
+      temp_ = turrets_g_.spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      robot_world_col_.push_back(temp_);
       return false;
     }
     
@@ -1295,7 +1320,7 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
       dist = dist_temp;
   }
 
-  //ROS_INFO("[cc] Torso is valid.");
+  ROS_DEBUG("[cc] Torso is valid.");
   return true;
 }
 
@@ -1311,7 +1336,7 @@ bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double tor
   }
 
   // head
-  //ROS_INFO("[cc] Checking head-world.");
+  ROS_DEBUG("[cc] Checking head-world.");
   getVoxelsInGroup(head_g_.f, head_g_);
   for(size_t i = 0; i < head_g_.spheres.size(); ++i)
   {
@@ -1326,6 +1351,9 @@ bool PR2CollisionSpace::isHeadValid(double x, double y, double theta, double tor
     if((dist_temp = grid_->getDistance(head_g_.spheres[i].voxel[0], head_g_.spheres[i].voxel[1], head_g_.spheres[i].voxel[2])) <= head_g_.spheres[i].radius)
     {
       dist = dist_temp;
+      temp_ = head_g_.spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      robot_world_col_.push_back(temp_);
       return false;
     }
     
@@ -2129,6 +2157,7 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
 {
   double d = 100.0; int debug_code=100;
   dist = 100.0;
+  robot_world_col_.clear();
 
   // arms-world
   if(!checkCollisionArms(langles, rangles, pose, verbose, dist, debug_code, false))
@@ -2160,6 +2189,8 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
 
 bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
+  robot_robot_col_.clear();
+  
   //arms-arms
   double d = 100.0;
   if(!checkCollisionBetweenArms(langles,rangles, pose, verbose, d))
@@ -2446,6 +2477,21 @@ void PR2CollisionSpace::resetWorld()
   ROS_INFO("[cc] Resetting the occupancy grid and clearing all collision objects.");
   removeAllCollisionObjects();
   grid_->reset();
+}
+
+void PR2CollisionSpace::visualizeCollision()
+{
+  for(size_t i = 0; i < robot_world_col_.size(); ++i)
+  {
+    ROS_DEBUG("[cc] [%d/%d] visualizing collision...{name: %s  xyz: %0.2f %0.2f %0.2f  radius: %0.2f}", int(i+1), int(robot_world_col_.size()), robot_world_col_[i].name.c_str(), robot_world_col_[i].v.x(), robot_world_col_[i].v.y(), robot_world_col_[i].v.z(), robot_world_col_[i].radius);
+    pviz_.visualizeSphere(robot_world_col_[i].v.x(), robot_world_col_[i].v.y(), robot_world_col_[i].v.z(), robot_world_col_[i].radius*1.1, 10, "robot-world-collisions", int(i));
+  }
+}
+
+void PR2CollisionSpace::deleteCollisionVisualizations()
+{
+  pviz_.deleteVisualizations("robot-world-collisions", 10);
+  pviz_.deleteVisualizations("robot-robot-collisions", 10);
 }
 
 }

@@ -253,6 +253,10 @@ class PR2CollisionSpace
 
     void resetWorld();
 
+    void visualizeCollision();
+
+    void deleteCollisionVisualizations();
+
   private:
 
     /** @brief arm model used by planner */
@@ -334,10 +338,16 @@ class PR2CollisionSpace
     std::string attached_object_frame_suffix_;
 
     int getAttachedObjectIndex(std::string name);
-    //bool getAttachedFrameInfo(std::string frame, int &segment, int &chain);
     int getSegmentIndex(std::string &name, KDL::Chain &chain);
 
     arm_navigation_msgs::CollisionMap last_collision_map_;
+
+
+    Sphere temp_;
+    std::vector<Sphere> robot_world_col_;
+    std::vector<Sphere> robot_robot_col_;
+    std::vector<Sphere> group_world_col_;
+    std::vector<Sphere> group_robot_col_;
 };
 
 } 
