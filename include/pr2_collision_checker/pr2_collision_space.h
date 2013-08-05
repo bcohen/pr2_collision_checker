@@ -345,9 +345,10 @@ class PR2CollisionSpace
 
     Sphere temp_;
     std::vector<Sphere> robot_world_col_;
-    std::vector<Sphere> robot_robot_col_;
+    std::vector<Sphere> arms_body_col_;
+    std::vector<Sphere> arms_arms_col_;
     std::vector<Sphere> group_world_col_;
-    std::vector<Sphere> group_robot_col_;
+    std::vector<Sphere> group_group_col_;
 };
 
 } 

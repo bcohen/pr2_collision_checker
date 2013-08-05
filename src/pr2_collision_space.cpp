@@ -1393,7 +1393,15 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
       {
         if(d < dist)
           dist = d;
-        ROS_INFO(" [%s-right_gripper] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+        ROS_DEBUG(" [%s-right_gripper] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+        
+        temp_ = rgripper_g_.spheres[j];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
+
+        temp_ = group.spheres[i];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
         return false;
       }
       dist = min(d, dist);
@@ -1408,7 +1416,15 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
       {
         if(d < dist)
           dist = d;
-        ROS_INFO(" [%s-left_gripper] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+        ROS_DEBUG(" [%s-left_gripper] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+ 
+        temp_ = lgripper_g_.spheres[j];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
+
+        temp_ = group.spheres[i];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
         return false;
       }
       dist = min(d, dist);
@@ -1423,7 +1439,15 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
       {
         if(d < dist)
           dist = d;
-        ROS_INFO(" [%s-right_forearm] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+        ROS_DEBUG(" [%s-right_forearm] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+ 
+        temp_ = rforearm_g_.spheres[j];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
+
+        temp_ = group.spheres[i];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
         return false;
       }
       dist = min(d, dist);
@@ -1438,7 +1462,15 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
       {
         if(d < dist)
           dist = d;
-        ROS_INFO(" [%s-left_forearm] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+        ROS_DEBUG(" [%s-left_forearm] COLLISION {dist: %0.3fm}", group.name.c_str(), d);
+ 
+        temp_ = lforearm_g_.spheres[j];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
+
+        temp_ = group.spheres[i];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        arms_body_col_.push_back(temp_);
         return false;
       }
       dist = min(d, dist);
@@ -2101,6 +2133,7 @@ void PR2CollisionSpace::storeCollisionMap(const arm_navigation_msgs::CollisionMa
 bool PR2CollisionSpace::checkGroupAgainstWorld(Group* group, double &dist)
 {
   double dist_temp = 100.0;
+  group_world_col_.clear();
 
   getVoxelsInGroup(group->f, *group);
   for(size_t i = 0; i < group->spheres.size(); ++i)
@@ -2116,6 +2149,10 @@ bool PR2CollisionSpace::checkGroupAgainstWorld(Group* group, double &dist)
     if((dist_temp = grid_->getDistance(group->spheres[i].voxel[0], group->spheres[i].voxel[1], group->spheres[i].voxel[2])) <= group->spheres[i].radius)
     {
       dist = dist_temp;
+
+      temp_ = group->spheres[i];
+      grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+      group_world_col_.push_back(temp_);
       return false;
     }
     
@@ -2130,6 +2167,7 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
   double d = 100.0;
   dist = 100.0;
   KDL::Vector v1, v2;
+  group_group_col_.clear();
 
   for(size_t i = 0; i < g1->spheres.size(); ++i)
   {
@@ -2145,6 +2183,14 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
           dist = d;
 
         ROS_DEBUG("[cc] [%s-%s] COLLISION {sphere1: %s  sphere2: %s dist: %0.3fm}", g1->name.c_str(), g2->name.c_str(), g1->spheres[i].name.c_str(), g2->spheres[j].name.c_str(), d);
+
+        temp_ = g1->spheres[i];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        group_group_col_.push_back(temp_);
+
+        temp_ = g2->spheres[j];
+        grid_->gridToWorld(temp_.voxel[0], temp_.voxel[1], temp_.voxel[2], temp_.v.data[0], temp_.v.data[1], temp_.v.data[2]);
+        group_group_col_.push_back(temp_);
         return false;
       }
       dist = min(d, dist);
@@ -2189,7 +2235,8 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
 
 bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
-  robot_robot_col_.clear();
+  arms_body_col_.clear();
+  arms_arms_col_.clear();
   
   //arms-arms
   double d = 100.0;
@@ -2483,15 +2530,35 @@ void PR2CollisionSpace::visualizeCollision()
 {
   for(size_t i = 0; i < robot_world_col_.size(); ++i)
   {
-    ROS_DEBUG("[cc] [%d/%d] visualizing collision...{name: %s  xyz: %0.2f %0.2f %0.2f  radius: %0.2f}", int(i+1), int(robot_world_col_.size()), robot_world_col_[i].name.c_str(), robot_world_col_[i].v.x(), robot_world_col_[i].v.y(), robot_world_col_[i].v.z(), robot_world_col_[i].radius);
+    ROS_DEBUG("[cc] [robot-world] [%d/%d] visualizing collision...{name: %s  xyz: %0.2f %0.2f %0.2f  radius: %0.2f}", int(i+1), int(robot_world_col_.size()), robot_world_col_[i].name.c_str(), robot_world_col_[i].v.x(), robot_world_col_[i].v.y(), robot_world_col_[i].v.z(), robot_world_col_[i].radius);
     pviz_.visualizeSphere(robot_world_col_[i].v.x(), robot_world_col_[i].v.y(), robot_world_col_[i].v.z(), robot_world_col_[i].radius*1.1, 10, "robot-world-collisions", int(i));
+  }
+
+  for(size_t i = 0; i < arms_body_col_.size(); ++i)
+  {
+    ROS_DEBUG("[cc]   [arms-body] [%d/%d] visualizing collision...{name: %s  xyz: %0.2f %0.2f %0.2f  radius: %0.2f}", int(i+1), int(arms_body_col_.size()), arms_body_col_[i].name.c_str(), arms_body_col_[i].v.x(), arms_body_col_[i].v.y(), arms_body_col_[i].v.z(), arms_body_col_[i].radius);
+    pviz_.visualizeSphere(arms_body_col_[i].v.x(), arms_body_col_[i].v.y(), arms_body_col_[i].v.z(), arms_body_col_[i].radius*1.05, 10, "arms-body-collisions", int(i));
+  }
+
+  for(size_t i = 0; i < group_group_col_.size(); ++i)
+  {
+    ROS_DEBUG("[cc] [group-group] [%d/%d] visualizing collision...{name: %s  xyz: %0.2f %0.2f %0.2f  radius: %0.2f}", int(i+1), int(group_group_col_.size()), group_group_col_[i].name.c_str(), group_group_col_[i].v.x(), group_group_col_[i].v.y(), group_group_col_[i].v.z(), group_group_col_[i].radius);
+    pviz_.visualizeSphere(group_group_col_[i].v.x(), group_group_col_[i].v.y(), group_group_col_[i].v.z(), group_group_col_[i].radius*1.05, 10, "group-group-collisions", int(i));
+  }
+
+  for(size_t i = 0; i < group_world_col_.size(); ++i)
+  {
+    ROS_DEBUG("[cc] [group-world] [%d/%d] visualizing collision...{name: %s  xyz: %0.2f %0.2f %0.2f  radius: %0.2f}", int(i+1), int(group_world_col_.size()), group_world_col_[i].name.c_str(), group_world_col_[i].v.x(), group_world_col_[i].v.y(), group_world_col_[i].v.z(), group_world_col_[i].radius);
+    pviz_.visualizeSphere(group_world_col_[i].v.x(), group_world_col_[i].v.y(), group_world_col_[i].v.z(), group_world_col_[i].radius*1.3, 10, "group-world-collisions", int(i));
   }
 }
 
 void PR2CollisionSpace::deleteCollisionVisualizations()
 {
   pviz_.deleteVisualizations("robot-world-collisions", 10);
-  pviz_.deleteVisualizations("robot-robot-collisions", 10);
+  pviz_.deleteVisualizations("arms-body-collisions", 10);
+  pviz_.deleteVisualizations("group-group-collisions", 10);
+  pviz_.deleteVisualizations("group-world-collisions", 10);
 }
 
 }
