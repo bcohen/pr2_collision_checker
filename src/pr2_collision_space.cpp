@@ -59,7 +59,7 @@ PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, 
 
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
-  inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
+  inc_[6] = M_PI;
 }
     
 PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm_filename, std::vector<double> &dims, std::vector<double> &origin, double resolution, std::string frame_id)
@@ -102,7 +102,7 @@ PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm
 
   inc_.resize(arm_[0]->num_joints_,0.0348);
   inc_[5] = 0.1392; // 8 degrees
-  inc_[6] = M_PI; //rolling the wrist doesn't change the arm's shape
+  inc_[6] = M_PI;
   ROS_DEBUG("[cc] Finished constructor.");
 }
 
@@ -120,6 +120,7 @@ PR2CollisionSpace::~PR2CollisionSpace()
 
 bool PR2CollisionSpace::init()
 {
+  // joint limits
   arm_min_limits_.resize(2);
   arm_max_limits_.resize(2);
   for(int i = 0; i < arm_[0]->num_joints_; ++i)
@@ -133,6 +134,10 @@ bool PR2CollisionSpace::init()
     arm_max_limits_[1].push_back(arm_[1]->getMaxJointLimit(i));
   }
 
+  torso_min_limit_ = 0.0115;
+  torso_max_limit_ = 0.325;
+
+  // get robot model
   if(!getSphereGroups())
     return false;
 
@@ -189,11 +194,6 @@ bool PR2CollisionSpace::checkCollisionArms(const std::vector<double> &langles, c
     }
     dist = min(dist_temp,dist);
   }
-
-  /*
-  if(verbose)
-    ROS_INFO("[Both]  dist: %0.3fm dist_temp: %0.3fm", dist, dist_temp);
-  */
 
   return true;
 }
@@ -1235,7 +1235,10 @@ bool PR2CollisionSpace::isTorsoValid(double x, double y, double theta, double to
 {
   double dist_temp = 100.0;
 
-  //ROS_INFO("[cc] Checking Torso. x: %0.3f y: %0.3f theta: %0.3f torso: %0.3f torso_kdl_num: %d",x,y,theta,torso,torso_upper_g_.kdl_segment);
+  // check joint limits
+  if((torso > torso_max_limit_) || (torso < torso_min_limit_))
+    return false;
+
   if(!computeFullBodyKinematics(x,y,theta,torso, torso_upper_g_.kdl_segment, torso_upper_g_.f))
   {
     ROS_ERROR("[cc] Failed to compute FK for torso.");
@@ -1374,13 +1377,6 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
 {
   //NOTE: Assumes you computed the kinematics for all the joints already.
   double d=200.0;
-  /*
-  printGroupVoxels(group, group.name);
-  printGroupVoxels(rgripper_g_, "right gripper");
-  printGroupVoxels(lgripper_g_, "left gripper");
-  printGroupVoxels(rforearm_g_, "right forearm");
-  printGroupVoxels(lforearm_g_, "left forearm");
-  */
 
   for(size_t i = 0; i < group.spheres.size(); ++i)
   {
