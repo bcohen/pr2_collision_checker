@@ -21,6 +21,6 @@ rosbuild_add_library(pr2_collision_checker src/sbpl_arm_model.cpp
                                            src/pr2_collision_space_monitor.cpp)
 target_link_libraries(pr2_collision_checker leatherman sbpl_manipulation_components sbpl_geometry_utils)
 
-rosbuild_add_executable(testPR2CollisionChecker src/test_pr2_collision_checker.cpp)
-target_link_libraries(testPR2CollisionChecker pr2_collision_checker)
+#rosbuild_add_executable(testPR2CollisionChecker src/test_pr2_collision_checker.cpp)
+#target_link_libraries(testPR2CollisionChecker pr2_collision_checker)
 
