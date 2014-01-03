@@ -105,7 +105,6 @@ class PR2CollisionSpaceMonitor
     bool attached_object_;
     std::string map_frame_;
     std::string reference_frame_;
-    std::string collision_map_topic_;
     bool visualize_collision_model_;
     bool use_collision_map_from_sensors_;
 

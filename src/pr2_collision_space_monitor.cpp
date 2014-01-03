@@ -75,11 +75,9 @@ PR2CollisionSpaceMonitor::~PR2CollisionSpaceMonitor()
 bool PR2CollisionSpaceMonitor::init()
 {
 	// general params
-	node_handle_.param<std::string>("reference_frame", reference_frame_, std::string("map"));
-	node_handle_.param<std::string>("collision_map_topic", collision_map_topic_, "collision_map_occ");
-
-	// visualizations params
-	node_handle_.param("visualizations/collision_model", visualize_collision_model_, false);
+	node_handle_.param<std::string>("collision_space/reference_frame", reference_frame_, std::string("map"));
+	node_handle_.param("collision_space/use_collision_map_from_sensors", use_collision_map_from_sensors_, false);
+	node_handle_.param("collision_space/visualizations", visualize_collision_model_, false);
 
 	typedef tf::MessageFilter<arm_navigation_msgs::CollisionMap> collisionMapFilter;
 	collision_map_filter_ = new collisionMapFilter(collision_map_subscriber_, tf_, reference_frame_, 1);

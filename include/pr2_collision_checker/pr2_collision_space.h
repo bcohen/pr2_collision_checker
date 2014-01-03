@@ -278,6 +278,8 @@ class PR2CollisionSpace
     std::map<std::string, std::vector<Eigen::Vector3d> > object_voxel_map_;
 
     std::vector<std::string> known_objects_;
+    double torso_min_limit_;
+    double torso_max_limit_;
     std::vector<std::vector<double> > arm_min_limits_;
     std::vector<std::vector<double> > arm_max_limits_;
     std::vector<double> inc_;
