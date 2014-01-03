@@ -43,7 +43,8 @@ double distance(const int a[], const int b[])
   return sqrt(((a[0]-b[0]))*(a[0]-b[0]) + ((a[1]-b[1]))*(a[1]-b[1]) + ((a[2]-b[2]))*(a[2]-b[2]));
 }
 
-PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, sbpl_arm_planner::SBPLArmModel* left_arm, sbpl_arm_planner::OccupancyGrid* grid) : grid_(grid)
+PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, sbpl_arm_planner::SBPLArmModel* left_arm, sbpl_arm_planner::OccupancyGrid* grid, const std::string& visualization_ns)
+  : grid_(grid), pviz_(visualization_ns)
 {
   visualize_result_ = false;
   arm_.resize(2);
@@ -63,6 +64,7 @@ PR2CollisionSpace::PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, 
 }
     
 PR2CollisionSpace::PR2CollisionSpace(std::string rarm_filename, std::string larm_filename, std::vector<double> &dims, std::vector<double> &origin, double resolution, std::string frame_id)
+  : pviz_(frame_id)
 {
   visualize_result_ = false;
   arm_.resize(2);
@@ -136,7 +138,9 @@ bool PR2CollisionSpace::init()
   if(!getSphereGroups())
     return false;
 
+  ROS_WARN("SETTING FRAME_ID TO: %s", grid_->getReferenceFrame().c_str());
   pviz_.setReferenceFrame(grid_->getReferenceFrame());
+
   return true;
 }
 
@@ -912,7 +916,7 @@ bool PR2CollisionSpace::getSphereGroups()
   Group g;
   std::string groups_name = "groups";
 
-  ros::NodeHandle ph("~");
+  ros::NodeHandle ph(/*"~"*/ "/dviz_core_node");
   ph.param<std::string>("full_body_kinematics_chain/root_frame", full_body_chain_root_name_, "base_footprint");
   ph.param<std::string>("full_body_kinematics_chain/tip_frame", full_body_chain_tip_name_, "head_tilt_link");
 
@@ -1480,7 +1484,7 @@ bool PR2CollisionSpace::checkCollisionArmsToGroup(Group &group, double &dist)
   return true;
 }
 
-bool PR2CollisionSpace::checkCollisionArmsToBody(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, double &dist)
+bool PR2CollisionSpace::checkCollisionArmsToBody(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, double &dist)
 {
   // compute arm kinematics
   arm_[0]->computeFK(rangles, pose, 10, &(rgripper_g_.f)); // right gripper
@@ -1526,7 +1530,7 @@ bool PR2CollisionSpace::checkCollisionArmsToBody(std::vector<double> &langles, s
   return true;
 }
 
-void PR2CollisionSpace::getCollisionSpheres(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, std::string group_name, std::vector<std::vector<double> > &spheres)
+void PR2CollisionSpace::getCollisionSpheres(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, std::string group_name, std::vector<std::vector<double> > &spheres)
 {
   if(group_name.compare("right_arm") == 0)
   {
@@ -2199,7 +2203,7 @@ bool PR2CollisionSpace::checkGroupAgainstGroup(Group *g1, Group *g2, double &dis
   return true;
 }
 
-bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
+bool PR2CollisionSpace::checkRobotAgainstWorld(const std::vector<double> &rangles, const std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
   double d = 100.0; int debug_code=100;
   dist = 100.0;
@@ -2233,7 +2237,7 @@ bool PR2CollisionSpace::checkRobotAgainstWorld(std::vector<double> &rangles, std
   return true;
 }
 
-bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
+bool PR2CollisionSpace::checkRobotAgainstRobot(const std::vector<double> &rangles, const std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist)
 {
   arms_body_col_.clear();
   arms_arms_col_.clear();
@@ -2268,7 +2272,7 @@ bool PR2CollisionSpace::checkRobotAgainstRobot(std::vector<double> &rangles, std
   return true;
 }
 
-bool PR2CollisionSpace::checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
+bool PR2CollisionSpace::checkRobotAgainstGroup(const std::vector<double> &rangles, const std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist)
 {
   double d = 100.0;
   dist = 100.0;

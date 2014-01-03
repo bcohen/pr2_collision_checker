@@ -128,7 +128,7 @@ class PR2CollisionSpace
 {
   public:
     /* constructors */
-    PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, sbpl_arm_planner::SBPLArmModel* left_arm, sbpl_arm_planner::OccupancyGrid* grid);
+    PR2CollisionSpace(sbpl_arm_planner::SBPLArmModel* right_arm, sbpl_arm_planner::SBPLArmModel* left_arm, sbpl_arm_planner::OccupancyGrid* grid, const std::string& visualization_ns = "");
     
     PR2CollisionSpace(std::string rarm_file, std::string larm_file, std::vector<double> &dims, std::vector<double> &origin, double resolution, std::string frame_id);
 
@@ -205,9 +205,9 @@ class PR2CollisionSpace
     bool isTorsoValid(double x, double y, double theta, double torso, double &dist);
     bool isHeadValid(double x, double y, double theta, double torso, double &dist);
     bool isBodyValid(double x, double y, double theta, double torso, double &dist);
-    bool checkCollisionArmsToBody(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, double &dist);
+    bool checkCollisionArmsToBody(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, double &dist);
 
-    void getCollisionSpheres(std::vector<double> &langles, std::vector<double> &rangles, BodyPose &pose, std::string group_name, std::vector<std::vector<double> > &spheres);
+    void getCollisionSpheres(const std::vector<double> &langles, const std::vector<double> &rangles, BodyPose &pose, std::string group_name, std::vector<std::vector<double> > &spheres);
 
     void printGroupVoxels(Group &g, std::string text);
 
@@ -229,9 +229,9 @@ class PR2CollisionSpace
     /* TAR Project  (Note: rangles first)*/
     bool checkGroupAgainstWorld(Group* group, double &dist);
     bool checkGroupAgainstGroup(Group *g1, Group *g2, double &dist);
-    bool checkRobotAgainstWorld(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
-    bool checkRobotAgainstGroup(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
-    bool checkRobotAgainstRobot(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
+    bool checkRobotAgainstWorld(const std::vector<double> &rangles, const std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
+    bool checkRobotAgainstGroup(const std::vector<double> &rangles, const std::vector<double> &langles, BodyPose &pose, Group *group, bool verbose, bool gripper, double &dist);
+    bool checkRobotAgainstRobot(const std::vector<double> &rangles, const std::vector<double> &langles, BodyPose &pose, bool verbose, double &dist);
 
     void addCollisionObjectMesh(const std::vector<geometry_msgs::Point> &vertices, const std::vector<int> &triangles, const geometry_msgs::Pose &pose, std::string name);
     bool addCollisionObjectMesh(std::string mesh_resource, geometry_msgs::Pose &pose, std::string name);
