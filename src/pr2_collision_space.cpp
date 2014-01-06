@@ -796,14 +796,14 @@ void PR2CollisionSpace::putCollisionObjectsInGrid()
   }
 }
 
-bool PR2CollisionSpace::getCollisionLinks()
+bool PR2CollisionSpace::getCollisionLinks(std::string ns)
 {
   XmlRpc::XmlRpcValue xml_links;
   CollisionLink cl;
   cl_.clear();
   std::string links_name = "collision_links";
 
-  ros::NodeHandle ph("~");
+  ros::NodeHandle ph(ns);
   if(!ph.hasParam(links_name)) 
   {
     ROS_WARN_STREAM("No groups for planning specified in " << links_name);
@@ -909,14 +909,14 @@ void PR2CollisionSpace::printCollisionLinks()
   }
 }
 
-bool PR2CollisionSpace::getSphereGroups()
+bool PR2CollisionSpace::getSphereGroups(std::string ns)
 {
   XmlRpc::XmlRpcValue all_groups;
   Sphere s;
   Group g;
   std::string groups_name = "groups";
 
-  ros::NodeHandle ph(/*"~"*/ "/dviz_core_node");
+  ros::NodeHandle ph(ns);
   ph.param<std::string>("full_body_kinematics_chain/root_frame", full_body_chain_root_name_, "base_footprint");
   ph.param<std::string>("full_body_kinematics_chain/tip_frame", full_body_chain_tip_name_, "head_tilt_link");
 

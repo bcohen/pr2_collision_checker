@@ -189,9 +189,9 @@ class PR2CollisionSpace
     void transformPose(const std::string &current_frame, const std::string &desired_frame, const geometry_msgs::Pose &pose_in, geometry_msgs::Pose &pose_out);
 
     /* full body planning */
-    bool getCollisionLinks();
+    bool getCollisionLinks(std::string ns="~");
     void printCollisionLinks();
-    bool getSphereGroups();
+    bool getSphereGroups(std::string ns="~");
     void printSphereGroups();
     bool initFullBodyKinematics();
     void printKDLChain(std::string name, KDL::Chain &chain);
