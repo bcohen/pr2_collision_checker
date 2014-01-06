@@ -134,7 +134,7 @@ class PR2CollisionSpace
 
     ~PR2CollisionSpace();
 
-    bool init();
+    bool init(std::string ns="~");
 
     /* collision checking */
     bool checkCollision(const std::vector<double> &angles, BodyPose &pose, char i_arm, bool verbose, double &dist);

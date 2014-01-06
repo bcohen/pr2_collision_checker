@@ -120,7 +120,7 @@ PR2CollisionSpace::~PR2CollisionSpace()
   delete fk_solver_;
 }
 
-bool PR2CollisionSpace::init()
+bool PR2CollisionSpace::init(std::string ns)
 {
   // joint limits
   arm_min_limits_.resize(2);
@@ -140,12 +140,11 @@ bool PR2CollisionSpace::init()
   torso_max_limit_ = 0.325;
 
   // get robot model
-  if(!getSphereGroups())
+  if(!getSphereGroups(ns))
     return false;
 
-  ROS_WARN("SETTING FRAME_ID TO: %s", grid_->getReferenceFrame().c_str());
+  ROS_INFO("Setting reference frame of pviz to: '%s'.", grid_->getReferenceFrame().c_str());
   pviz_.setReferenceFrame(grid_->getReferenceFrame());
-
   return true;
 }
 
