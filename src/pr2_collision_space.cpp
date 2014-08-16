@@ -2333,14 +2333,14 @@ visualization_msgs::MarkerArray PR2CollisionSpace::getGroupVisualization(Group &
 void PR2CollisionSpace::visualizeGroup(Group &group, std::string ns, int id)
 {
   visualization_msgs::MarkerArray ma = getGroupVisualization(group, ns, id);
-  pviz_.publishMarkerArray(ma);
+  pviz_.publish(ma);
 }
 
 void PR2CollisionSpace::visualizeRobotCollisionModel(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id)
 {
   pviz_.deleteVisualizations(ns, 200);
   visualization_msgs::MarkerArray ma = getCollisionModelVisualization(rangles, langles, body_pos, ns, id);
-  pviz_.publishMarkerArray(ma);
+  pviz_.publish(ma);
 }
 
 visualization_msgs::MarkerArray PR2CollisionSpace::getCollisionModelVisualization(std::vector<double> &rangles, std::vector<double> &langles, BodyPose &body_pos, std::string ns, int id)
@@ -2464,9 +2464,9 @@ bool PR2CollisionSpace::addCollisionObjectMesh(std::string mesh_resource, geomet
   {
     visualization_msgs::MarkerArray ma;
     ma  = getVisualization("distance_field", "distance_field", 0);
-    pviz_.publishMarkerArray(ma);
+    pviz_.publish(ma);
     ma  = getVisualization("bounds", "bounds", 0);
-    pviz_.publishMarkerArray(ma);
+    pviz_.publish(ma);
   }
   return true;
 }
@@ -2510,9 +2510,9 @@ bool PR2CollisionSpace::getObjectVoxelsFromFile(std::string filename)
   {
     visualization_msgs::MarkerArray ma;
     ma  = getVisualization("distance_field", "distance_field", 0);
-    pviz_.publishMarkerArray(ma);
+    pviz_.publish(ma);
     ma  = getVisualization("bounds", "bounds", 0);
-    pviz_.publishMarkerArray(ma);
+    pviz_.publish(ma);
   }
 
   return true;
