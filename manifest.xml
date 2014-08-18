@@ -21,6 +21,7 @@
   <depend package="trajectory_msgs" />
   <depend package="geometry_msgs" />
   <depend package="message_filters" />
+  <depend package="pr2_arm_kinematics" />
 
   <export>
     <cpp cflags="-I${prefix}/include -O3 -g" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lpr2_collision_checker"/>
